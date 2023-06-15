@@ -1,0 +1,12 @@
+[submodule "ext/better-cmake"]
+	path = ext/better-cmake
+	url = https://github.com/daemontsun/better-cmake
+[submodule "ext/shl"]
+	path = ext/shl
+	url = https://github.com/daemontsun/shl
+[submodule "ext/mg"]
+	path = ext/mg
+	url = https://github.com/daemontsun/mg
+[submodule "ext/liballegrex"]
+	path = ext/liballegrex
+	url = https://github.com/daemontsun/liballegrex
