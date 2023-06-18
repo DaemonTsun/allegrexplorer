@@ -6,6 +6,7 @@
 #include "allegrex/disassemble.hpp"
 
 #include "allegrexplorer_info.hpp"
+#include "imgui_util.hpp"
 
 #define U32_FORMAT   "%08x"
 #define VADDR_FORMAT "0x%08x"
@@ -15,6 +16,8 @@ struct ui_elf_section
     // vaddr - name
     string header;
     elf_section *section;
+
+    // TODO: array of functions, sorted by vaddr
 };
 
 void free(ui_elf_section *sec)
@@ -116,6 +119,32 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Disassembly");
+
+    auto wpadding = ImGui::GetStyle().WindowPadding;
+    ui::padding sec_padding;
+    sec_padding.left = 0;
+    sec_padding.right = wpadding.x;
+    sec_padding.top = wpadding.y;
+    sec_padding.bottom = wpadding.y;
+
+    ImColor sec_color{0xff, 0xcc, 0x22, 0xff};
+    ImColor func_color{0xff, 0x33, 0x11, 0xff};
+
+    ImGui::PushStyleColor(ImGuiCol_Text, {0, 0, 0, 0xff});
+
+    for_array(sec, &ctx.disasm.psp_module.sections)
+    {
+        ui::begin_group(sec_color, sec_padding);
+
+        ImGui::Text(sec->name);
+
+        ui::begin_group(func_color, sec_padding);
+
+        ui::end_group();
+        ui::end_group();
+    }
+
+    ImGui::PopStyleColor();
 
     ImGui::End();
 }
