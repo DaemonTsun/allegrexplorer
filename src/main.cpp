@@ -1,4 +1,6 @@
 
+#include <assert.h>
+
 #include "shl/format.hpp"
 #include "shl/string.hpp"
 
@@ -11,14 +13,24 @@
 #define U32_FORMAT   "%08x"
 #define VADDR_FORMAT "0x%08x"
 
+#define DISASM_LINE_FORMAT "%08x %08x"
+#define DISASM_MNEMONIC_FORMAT "%-10s"
+
 struct ui_elf_section
 {
     // vaddr - name
     string header;
     elf_section *section;
 
+    instruction_parse_data* instruction_data;
+
     // TODO: array of functions, sorted by vaddr
 };
+
+void init(ui_elf_section *sec)
+{
+    init(&sec->header);
+}
 
 void free(ui_elf_section *sec)
 {
@@ -31,6 +43,8 @@ struct allegrexplorer_context
 
     array<ui_elf_section> sections;
     array<ui_elf_section*> section_search_results;
+
+    char file_offset_format[32];
 };
 
 void init(allegrexplorer_context *ctx)
@@ -115,6 +129,22 @@ void imgui_side_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
+void ui_instruction_name_text(const instruction *inst)
+{
+    const char *name = get_mnemonic_name(inst->mnemonic);
+
+    if (requires_vfpu_suffix(inst->mnemonic))
+    {
+        vfpu_size sz = get_vfpu_size(inst->opcode);
+        const char *suf = size_suffix(sz);
+        auto fullname = tformat("%%\0"_cs, name, suf);
+
+        ImGui::Text(DISASM_MNEMONIC_FORMAT, fullname.c_str);
+    }
+    else
+        ImGui::Text(DISASM_MNEMONIC_FORMAT, name);
+}
+
 void main_panel(mg::window *window, ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
@@ -132,16 +162,30 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
     ImGui::PushStyleColor(ImGuiCol_Text, {0, 0, 0, 0xff});
 
-    for_array(sec, &ctx.disasm.psp_module.sections)
+    for_array(uisec, &ctx.sections)
     {
+        elf_section *sec = uisec->section;
+
         ui::begin_group(sec_color, sec_padding);
 
-        ImGui::Text(sec->name);
+        if (uisec->instruction_data != nullptr)
+        {
+            ui::begin_group(func_color, sec_padding);
 
-        ui::begin_group(func_color, sec_padding);
+            for_array(inst, &uisec->instruction_data->instructions)
+            {
+                ImGui::Text(ctx.file_offset_format, sec->content_offset);
+                ImGui::SameLine();
+                ImGui::Text(DISASM_LINE_FORMAT, inst->address, inst->opcode);
+                ImGui::SameLine();
+                ui_instruction_name_text(inst);
+            }
 
+            ui::end_group();
+        }
         ui::end_group();
-        ui::end_group();
+
+        break;
     }
 
     ImGui::PopStyleColor();
@@ -232,19 +276,52 @@ void update(mg::window *window, double dt)
     ui::end_frame();
 }
 
+template<typename T>
+constexpr inline T hex_digits(T x)
+{
+    T i = 0;
+
+    while (x > 0)
+    {
+        x = x >> 4;
+        ++i;
+    }
+
+    return i;
+}
+
 void prepare_disasm_ui_data()
 {
-    for_array(sec, &ctx.disasm.psp_module.sections)
+    reserve(&ctx.sections, ctx.disasm.psp_module.sections.size);
+
+    for_array(i, sec, &ctx.disasm.psp_module.sections)
     {
         ui_elf_section *uisec = ::add_at_end(&ctx.sections);
+        init(uisec);
 
         uisec->header = copy_string(tformat(VADDR_FORMAT " %s", sec->vaddr, sec->name));
         uisec->section = sec;
-
+        uisec->instruction_data = nullptr;
+        
+        if (i < ctx.disasm.instruction_datas.size)
+        {
+            uisec->instruction_data = ctx.disasm.instruction_datas.data + i;
+            assert(uisec->instruction_data->section_index == i);
+        }
     }
 
     for_array(usec, &ctx.sections)
         ::add_at_end(&ctx.section_search_results, usec);
+
+
+    if (ctx.sections.size > 0)
+    {
+        elf_section *last_section = (ctx.sections.data + (ctx.sections.size - 1))->section;
+        u32 max_instruction_offset = last_section->content_offset + last_section->content_size;
+        u32 pos_digits = hex_digits(max_instruction_offset);
+
+        sprintf(ctx.file_offset_format, "%%0%ux", pos_digits);
+    }
 }
 
 void load_psp_elf(const char *path)
