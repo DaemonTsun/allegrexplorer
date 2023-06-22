@@ -16,6 +16,15 @@
 #define DISASM_LINE_FORMAT "%08x %08x"
 #define DISASM_MNEMONIC_FORMAT "%-10s"
 
+struct ui_allegrex_function
+{
+    elf_section *section;
+    u32 vaddr;
+    u32 max_vaddr; // the last vaddr in this function
+    instruction *instructions;
+    u64 instruction_count;
+};
+
 struct ui_elf_section
 {
     // vaddr - name
@@ -24,17 +33,20 @@ struct ui_elf_section
 
     instruction_parse_data* instruction_data;
 
+    array<ui_allegrex_function> functions;
     // TODO: array of functions, sorted by vaddr
 };
 
 void init(ui_elf_section *sec)
 {
     init(&sec->header);
+    init(&sec->functions);
 }
 
 void free(ui_elf_section *sec)
 {
     free(&sec->header);
+    free(&sec->functions);
 }
 
 struct allegrexplorer_context
@@ -45,6 +57,7 @@ struct allegrexplorer_context
     array<ui_elf_section*> section_search_results;
 
     char file_offset_format[32];
+    char address_name_format[32];
 };
 
 void init(allegrexplorer_context *ctx)
@@ -62,6 +75,33 @@ void free(allegrexplorer_context *ctx)
 }
 
 static allegrexplorer_context ctx;
+
+const char *address_name(u32 addr)
+{
+    // symbols
+    elf_symbol *sym = ::search(&ctx.disasm.psp_module.symbols, &addr);
+
+    if (sym != nullptr)
+        return sym->name;
+
+    // imports
+    function_import *fimp = ::search(&ctx.disasm.psp_module.imports, &addr);
+
+    if (fimp != nullptr)
+        return fimp->function->name;
+
+    /*
+    // exports (unoptimized, but probably not too common)
+    for_array(mod, conf->exported_modules)
+    {
+        for_array(func, &mod->functions)
+            if (func->address == addr)
+                return func->function->name;
+    }
+    */
+
+    return "";
+}
 
 void imgui_menu_bar(mg::window *window)
 {
@@ -165,24 +205,37 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
     for_array(uisec, &ctx.sections)
     {
         elf_section *sec = uisec->section;
+        u32 pos = sec->content_offset;
 
         ui::begin_group(sec_color, sec_padding);
 
-        if (uisec->instruction_data != nullptr)
+        ImGui::Text(" Section %s", sec->name);
+
+        for_array(func, &uisec->functions)
         {
+            if (func->instruction_count == 0)
+                continue;
+
             ui::begin_group(func_color, sec_padding);
 
-            for_array(inst, &uisec->instruction_data->instructions)
+            for (u64 i = 0; i < func->instruction_count; ++i)
             {
-                ImGui::Text(ctx.file_offset_format, sec->content_offset);
+                instruction *inst = func->instructions + i;
+
+                ImGui::Text(ctx.address_name_format, address_name(inst->address));
+                ImGui::SameLine();
+                ImGui::Text(ctx.file_offset_format, pos);
                 ImGui::SameLine();
                 ImGui::Text(DISASM_LINE_FORMAT, inst->address, inst->opcode);
                 ImGui::SameLine();
                 ui_instruction_name_text(inst);
+
+                pos += sizeof(u32);
             }
 
             ui::end_group();
         }
+
         ui::end_group();
 
         break;
@@ -294,6 +347,9 @@ void prepare_disasm_ui_data()
 {
     reserve(&ctx.sections, ctx.disasm.psp_module.sections.size);
 
+    jump_destinations *jumps = &ctx.disasm.jumps;
+    u32 jmp_i = 0;
+
     for_array(i, sec, &ctx.disasm.psp_module.sections)
     {
         ui_elf_section *uisec = ::add_at_end(&ctx.sections);
@@ -308,12 +364,45 @@ void prepare_disasm_ui_data()
             uisec->instruction_data = ctx.disasm.instruction_datas.data + i;
             assert(uisec->instruction_data->section_index == i);
         }
+
+        ui_allegrex_function *f = add_at_end(&uisec->functions);
+        f->instructions = uisec->instruction_data->instructions.data;
+        f->vaddr = sec->vaddr;
+
+        u64 current_instruction_count = 0;
+
+        bool new_func = false;
+
+        while (jmp_i < array_size(jumps) && jumps->data[jmp_i].address < f->vaddr)
+            ++jmp_i;
+
+        for (u64 idx = 0; idx < uisec->instruction_data->instructions.size; ++idx)
+        {
+            instruction *instr = uisec->instruction_data->instructions.data + idx;           
+
+            new_func = (jmp_i < array_size(jumps)) && (jumps->data[jmp_i].address <= instr->address);
+
+            if (new_func)
+            {
+                f->instruction_count = current_instruction_count;
+                current_instruction_count = 0;
+
+                f = add_at_end(&uisec->functions);
+                f->instructions = instr;
+                f->vaddr = instr->address;
+                jmp_i++;
+            }
+
+            current_instruction_count += 1;
+        }
+
+        f->instruction_count = current_instruction_count;
     }
 
     for_array(usec, &ctx.sections)
         ::add_at_end(&ctx.section_search_results, usec);
 
-
+    // offset formatting, we only want as many digits as necessary, not more
     if (ctx.sections.size > 0)
     {
         elf_section *last_section = (ctx.sections.data + (ctx.sections.size - 1))->section;
@@ -322,6 +411,28 @@ void prepare_disasm_ui_data()
 
         sprintf(ctx.file_offset_format, "%%0%ux", pos_digits);
     }
+
+    // name padding
+    u32 max_name_len = 0;
+
+    for_hash_table(sym, &ctx.disasm.psp_module.symbols)
+    {
+        u64 tmp = string_length(sym->name);
+        if (tmp > max_name_len)
+            max_name_len = tmp;
+    }
+
+    for_hash_table(fimp, &ctx.disasm.psp_module.imports)
+    {
+        u64 tmp = string_length(fimp->function->name);
+        if (tmp > max_name_len)
+            max_name_len = tmp;
+    }
+
+    if (max_name_len > 256)
+        max_name_len = 256;
+
+    sprintf(ctx.address_name_format, "%%-%us", max_name_len);
 }
 
 void load_psp_elf(const char *path)

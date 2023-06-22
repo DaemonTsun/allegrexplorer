@@ -16,10 +16,12 @@ struct group_stack_render_data
     ui::padding padding;
     ImVec2 start;
     ImVec2 end;
+    u64 stack_depth;
 };
 
 static array<group_stack_data> group_stack{};
 static array<group_stack_render_data> group_render_stack{};
+static u64 render_stack_depth = 0;
 
 struct XBounds
 {
@@ -63,6 +65,8 @@ void ui::begin_group(ImColor col, ui::padding padding)
 
     ImGui::PushClipRect(ImVec2(boundsX.start, window->ClipRect.Min.y),
                         ImVec2(boundsX.end, window->ClipRect.Max.y), false);
+
+    render_stack_depth++;
 }
 
 void ui::end_group()
@@ -81,6 +85,8 @@ void ui::end_group()
 
     ImGui::EndGroup();
 
+    render_stack_depth--;
+
     auto boundsX = calculateSectionBoundsX(0.0f, 0.0f);
     auto rect_min = ImGui::GetItemRectMin();
     auto rect_max = ImGui::GetItemRectMax();
@@ -89,7 +95,7 @@ void ui::end_group()
     auto panel_max = ImVec2(rect_max.x + padding.right, rect_max.y + padding.bottom);
 
     ::add_at_end(&group_render_stack,
-                 group_stack_render_data{stack_data.color, padding, panel_min, panel_max});
+                 group_stack_render_data{stack_data.color, padding, panel_min, panel_max, render_stack_depth});
 
     if (group_stack.size == 0)
     {
@@ -97,7 +103,7 @@ void ui::end_group()
         {
             group_stack_render_data *render = group_render_stack.data + i;
             auto end = render->end;
-            end.x += i * render->padding.right;
+            end.x += render->stack_depth * 10;
             ImGui::GetWindowDrawList()->ChannelsSetCurrent(0);
             ImGui::GetWindowDrawList()->AddRectFilled(
                     render->start, end,
