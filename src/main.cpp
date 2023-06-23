@@ -1,78 +1,25 @@
 
 #include <assert.h>
+#include "backends/imgui_impl_vulkan.h"
 
 #include "shl/format.hpp"
 #include "shl/string.hpp"
+#include "shl/array.hpp"
 
 #include "mg/mg.hpp"
+#include "mg/impl/context.hpp"
 #include "allegrex/disassemble.hpp"
 
 #include "allegrexplorer_info.hpp"
+#include "allegrexplorer_context.hpp"
 #include "imgui_util.hpp"
+#include "ui.hpp"
 
-#define U32_FORMAT   "%08x"
-#define VADDR_FORMAT "0x%08x"
-
-#define DISASM_LINE_FORMAT "%08x %08x"
-#define DISASM_MNEMONIC_FORMAT "%-10s"
-
-struct ui_allegrex_function
-{
-    elf_section *section;
-    u32 vaddr;
-    u32 max_vaddr; // the last vaddr in this function
-    instruction *instructions;
-    u64 instruction_count;
-};
-
-struct ui_elf_section
-{
-    // vaddr - name
-    string header;
-    elf_section *section;
-
-    instruction_parse_data* instruction_data;
-
-    array<ui_allegrex_function> functions;
-    // TODO: array of functions, sorted by vaddr
-};
-
-void init(ui_elf_section *sec)
-{
-    init(&sec->header);
-    init(&sec->functions);
-}
-
-void free(ui_elf_section *sec)
-{
-    free(&sec->header);
-    free(&sec->functions);
-}
-
-struct allegrexplorer_context
-{
-    psp_disassembly disasm;
-
-    array<ui_elf_section> sections;
-    array<ui_elf_section*> section_search_results;
-
-    char file_offset_format[32];
-    char address_name_format[32];
-};
-
-void init(allegrexplorer_context *ctx)
-{
-    init(&ctx->disasm);
-    init(&ctx->sections);
-    init(&ctx->section_search_results);
-}
-
-void free(allegrexplorer_context *ctx)
-{
-    free(&ctx->section_search_results);
-    free<true>(&ctx->sections);
-    free(&ctx->disasm);
-}
+const ImColor section_color = COL(0xffbf98ff);
+const ImColor function_color = COL(0xff6060ff);
+const ImColor section_text_color = COL(0x000000ff);
+ImFont *ui_font;
+ImFont *mono_font;
 
 static allegrexplorer_context ctx;
 
@@ -134,6 +81,7 @@ void imgui_side_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Module Info");
 
+    ImGui::PushFont(mono_font);
     ImGui::InputText("Module Name", mod_info->name, PRX_MODULE_NAME_LEN, ImGuiInputTextFlags_ReadOnly);
 
     int attr = mod_info->attribute;
@@ -165,6 +113,7 @@ void imgui_side_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::InputScalar("Import end", ImGuiDataType_U32, &mod_info->import_offset_end,
                        nullptr, nullptr, VADDR_FORMAT,
                        ImGuiInputTextFlags_ReadOnly);
+    ImGui::PopFont();
 
     ImGui::End();
 }
@@ -185,10 +134,180 @@ void ui_instruction_name_text(const instruction *inst)
         ImGui::Text(DISASM_MNEMONIC_FORMAT, name);
 }
 
+void ui_instruction_arguments(instruction *inst)
+{
+    bool first = true;
+
+    for (u32 i = 0; i < inst->argument_count; ++i)
+    {
+        ImGui::SameLine();
+
+        instruction_argument *arg = inst->arguments + i;
+        argument_type arg_type = inst->argument_types[i];
+
+        first = false;
+
+        switch (arg_type)
+        {
+        case argument_type::Invalid:
+            ImGui::Text("[?invalid?]");
+            break;
+
+        case argument_type::MIPS_Register:
+            ImGui::Text("%s", register_name(arg->mips_register));
+            break;
+
+        case argument_type::MIPS_FPU_Register:
+            ImGui::Text("%s", register_name(arg->mips_fpu_register));
+            break;
+
+        case argument_type::VFPU_Register:
+            ImGui::Text("%s%s", register_name(arg->vfpu_register),
+                                size_suffix(arg->vfpu_register.size));
+            break;
+
+        case argument_type::VFPU_Matrix:
+            ImGui::Text("%s%s", matrix_name(arg->vfpu_matrix)
+                              , size_suffix(arg->vfpu_matrix.size));
+            break;
+
+        case argument_type::VFPU_Condition:
+            ImGui::Text("%s", vfpu_condition_name(arg->vfpu_condition));
+            break;
+
+        case argument_type::VFPU_Constant:
+            ImGui::Text("%s", vfpu_constant_name(arg->vfpu_constant));
+            break;
+
+        case argument_type::VFPU_Prefix_Array:
+        {
+            vfpu_prefix_array *arr = &arg->vfpu_prefix_array;
+            ImGui::Text("[%s,%s,%s,%s]", vfpu_prefix_name(arr->data[0])
+                                       , vfpu_prefix_name(arr->data[1])
+                                       , vfpu_prefix_name(arr->data[2])
+                                       , vfpu_prefix_name(arr->data[3])
+            );
+            break;
+        }
+
+        case argument_type::VFPU_Destination_Prefix_Array:
+        {
+            vfpu_destination_prefix_array *arr = &arg->vfpu_destination_prefix_array;
+            ImGui::Text("[%s,%s,%s,%s]", vfpu_destination_prefix_name(arr->data[0])
+                                       , vfpu_destination_prefix_name(arr->data[1])
+                                       , vfpu_destination_prefix_name(arr->data[2])
+                                       , vfpu_destination_prefix_name(arr->data[3])
+            );
+            break;
+        }
+
+        case argument_type::VFPU_Rotation_Array:
+        {
+            vfpu_rotation_array *arr = &arg->vfpu_rotation_array;
+            ImGui::Text("[%s", vfpu_rotation_name(arr->data[0]));
+
+            for (int i = 1; i < arr->size; ++i)
+                ImGui::Text(",%s", vfpu_rotation_name(arr->data[i]));
+
+            ImGui::Text("]");
+            break;
+        }
+
+        case argument_type::PSP_Function_Pointer:
+        {
+            const psp_function *sc = arg->psp_function_pointer;
+            ImGui::Text("%s <0x%08x>", sc->name, sc->nid);
+            break;
+        }
+
+#define ARG_TYPE_FORMAT(out, arg, ArgumentType, UnionMember, FMT) \
+case argument_type::ArgumentType: \
+    ImGui::Text(FMT, arg->UnionMember.data);\
+    break;
+
+        ARG_TYPE_FORMAT(out, arg, Shift, shift, "%#x");
+
+        case argument_type::Coprocessor_Register:
+        {
+            coprocessor_register *reg = &arg->coprocessor_register;
+            ImGui::Text("[%u, %u]", reg->rd, reg->sel);
+            break;
+        }
+
+        case argument_type::Base_Register:
+            ImGui::Text("(%s)", register_name(arg->base_register.data));
+            break;
+
+        case argument_type::Jump_Address:
+        {
+            u32 addr = arg->jump_address.data;
+            const char *name = address_name(addr);
+
+            if (name != "")
+                ImGui::Text("%s", name);
+            else
+                ImGui::Text("func_%08x", addr);
+
+            break;
+        }
+
+        case argument_type::Branch_Address:
+        {
+            u32 addr = arg->branch_address.data;
+            ImGui::Text(".L%08x", addr);
+            break;
+        }
+
+        ARG_TYPE_FORMAT(out, arg, Memory_Offset, memory_offset, "%#x");
+        ARG_TYPE_FORMAT(out, arg, Immediate_u32, immediate_u32, "%#x");
+        case argument_type::Immediate_s32:
+        {
+            s32 d = arg->immediate_s32.data;
+
+            if (d < 0)
+                ImGui::Text("-%#x", -d);
+            else
+                ImGui::Text("%#x", d);
+
+            break;
+        }
+
+        ARG_TYPE_FORMAT(out, arg, Immediate_u16, immediate_u16, "%#x");
+        case argument_type::Immediate_s16:
+        {
+            s16 d = arg->immediate_s16.data;
+
+            if (d < 0)
+                ImGui::Text("-%#x", -d);
+            else
+                ImGui::Text("%#x", d);
+
+            break;
+        }
+
+        ARG_TYPE_FORMAT(out, arg, Immediate_u8,  immediate_u8,  "%#x");
+        ARG_TYPE_FORMAT(out, arg, Immediate_float, immediate_float, "%f");
+        ARG_TYPE_FORMAT(out, arg, Condition_Code, condition_code, "(CC[%#x])");
+        ARG_TYPE_FORMAT(out, arg, Bitfield_Pos, bitfield_pos, "%#x");
+        ARG_TYPE_FORMAT(out, arg, Bitfield_Size, bitfield_size, "%#x");
+
+        // case argument_type::Extra:
+        ARG_TYPE_FORMAT(out, arg, String, string_argument, "%s");
+
+        default:
+            // TODO: remove
+            ImGui::Text("");
+            break;
+        }
+    }
+
+}
+
 void main_panel(mg::window *window, ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Disassembly");
+    ImGui::PushFont(mono_font);
 
     auto wpadding = ImGui::GetStyle().WindowPadding;
     ui::padding sec_padding;
@@ -197,17 +316,14 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
     sec_padding.top = wpadding.y;
     sec_padding.bottom = wpadding.y;
 
-    ImColor sec_color{0xff, 0xcc, 0x22, 0xff};
-    ImColor func_color{0xff, 0x33, 0x11, 0xff};
-
-    ImGui::PushStyleColor(ImGuiCol_Text, {0, 0, 0, 0xff});
+    ImGui::PushStyleColor(ImGuiCol_Text, (u32)section_text_color);
 
     for_array(uisec, &ctx.sections)
     {
         elf_section *sec = uisec->section;
         u32 pos = sec->content_offset;
 
-        ui::begin_group(sec_color, sec_padding);
+        ui::begin_group(section_color, sec_padding);
 
         ImGui::Text(" Section %s", sec->name);
 
@@ -216,7 +332,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             if (func->instruction_count == 0)
                 continue;
 
-            ui::begin_group(func_color, sec_padding);
+            ui::begin_group(function_color, sec_padding);
 
             for (u64 i = 0; i < func->instruction_count; ++i)
             {
@@ -229,6 +345,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
                 ImGui::Text(DISASM_LINE_FORMAT, inst->address, inst->opcode);
                 ImGui::SameLine();
                 ui_instruction_name_text(inst);
+                ui_instruction_arguments(inst);
 
                 pos += sizeof(u32);
             }
@@ -243,6 +360,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
     ImGui::PopStyleColor();
 
+    ImGui::PopFont();
     ImGui::End();
 }
 
@@ -271,6 +389,8 @@ void sections_panel(mg::window *window, ImGuiID dockspace_id)
         }
     }
 
+    ImGui::PushFont(mono_font);
+
     for_array(usec_, &ctx.section_search_results)
     {
         ui_elf_section *usec = *usec_;
@@ -296,6 +416,8 @@ void sections_panel(mg::window *window, ImGuiID dockspace_id)
             ImGui::TreePop();
         }
     }
+
+    ImGui::PopFont();
 
     ImGui::End();
 }
@@ -450,9 +572,15 @@ int main(int argc, const char *argv[])
     init(&ctx.disasm);
 
     mg::window window;
-    mg::create_window(&window, allegrexplorer_NAME, 1024, 786);
+    // TODO: remember window size
+    mg::create_window(&window, allegrexplorer_NAME, 1600, 900);
 
     ImGuiIO *io = &ImGui::GetIO();
+    // TODO: get DPI
+    ui_font = io->Fonts->AddFontFromFileTTF("res/roboto-regular.ttf", 24);
+    mono_font = io->Fonts->AddFontFromFileTTF("res/iosevka-ss02-regular.ttf", 24);
+    ui::upload_fonts(&window);
+    
     io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     if (argc > 1)
