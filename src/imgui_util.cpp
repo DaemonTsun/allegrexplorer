@@ -118,5 +118,5 @@ void ui::end_group()
 
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + padding.bottom);
 
-    ImGui::Spacing();
+    // ImGui::Spacing();
 }

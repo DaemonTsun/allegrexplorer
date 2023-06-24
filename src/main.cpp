@@ -243,7 +243,7 @@ case argument_type::ArgumentType: \
             u32 addr = arg->jump_address.data;
             const char *name = address_name(addr);
 
-            if (name != "")
+            if (compare_strings(name, "") != 0)
                 ImGui::Text("%s", name);
             else
                 ImGui::Text("func_%08x", addr);
@@ -295,37 +295,127 @@ case argument_type::ArgumentType: \
         ARG_TYPE_FORMAT(out, arg, String, string_argument, "%s");
 
         default:
-            // TODO: remove
-            ImGui::Text("");
             break;
         }
     }
+}
 
+float get_function_height(ui_allegrex_function *func, float y_padding, float font_size, float item_spacing)
+{
+    float total_height = 0;
+
+    // top
+    total_height += y_padding;
+
+    total_height += func->instruction_count * font_size;
+
+    if (func->instruction_count > 0)
+        total_height += (func->instruction_count - 1) * item_spacing;
+    
+    // bottom
+    total_height += y_padding;
+
+    return total_height;
+}
+
+float get_section_height(ui_elf_section *section, float y_padding, float font_size, float item_spacing)
+{
+    float total_height = 0;
+
+    // header line
+    total_height += y_padding;
+    total_height += font_size;
+    total_height += item_spacing;
+
+    for_array(func, &section->functions)
+        total_height += get_function_height(func, y_padding, font_size, item_spacing);
+
+    total_height += section->functions.size * item_spacing;
+    
+    // bottom
+    total_height += y_padding;
+
+    return total_height;
+}
+
+float get_total_disassembly_height()
+{
+    auto wpadding = ImGui::GetStyle().WindowPadding;
+    float font_size = ImGui::GetFontSize();
+    auto item_spacing = ImGui::GetStyle().ItemSpacing;
+
+    float total_height = 0;
+
+    for_array(_uisec, &ctx.sections)
+        total_height += get_section_height(_uisec, wpadding.y, font_size, item_spacing.y);
+
+    if (ctx.sections.size > 0)
+        total_height += (ctx.sections.size) * item_spacing.y;
+
+    return total_height;
 }
 
 void main_panel(mg::window *window, ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Disassembly");
-    ImGui::PushFont(mono_font);
 
+    auto wsize = ImGui::GetWindowSize();
     auto wpadding = ImGui::GetStyle().WindowPadding;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {wpadding.x, 6});
+    wpadding.y = 6;
     ui::padding sec_padding;
     sec_padding.left = 0;
     sec_padding.right = wpadding.x;
     sec_padding.top = wpadding.y;
     sec_padding.bottom = wpadding.y;
 
+    float font_size = ImGui::GetFontSize();
+    auto item_spacing = ImGui::GetStyle().ItemSpacing;
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {item_spacing.x, 16});
+    item_spacing.y = 16;
+
+    float total_height = get_total_disassembly_height();
+
+    float view_min_y = ImGui::GetScrollY();
+    float view_max_y = view_min_y + wsize.y;
+
+    ImGui::BeginChild("content",
+                      {wsize.x, total_height},
+                      false,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    ImGui::PushFont(mono_font);
     ImGui::PushStyleColor(ImGuiCol_Text, (u32)section_text_color);
 
-    for_array(uisec, &ctx.sections)
+    float current_height = 0;
+
+    printf("%f - %f\n", view_min_y, view_max_y);
+
+    for_array(_i, uisec, &ctx.sections)
     {
+        float sec_height = get_section_height(uisec, wpadding.y, font_size, item_spacing.y);
+
+        if (current_height > view_max_y)
+            break;
+
+        if (current_height + sec_height < view_min_y)
+        {
+            ImGui::Dummy({0.f, sec_height});
+            current_height += sec_height;
+            current_height += item_spacing.y;
+            continue;
+        }
+
+        current_height += sec_height;
+        current_height += item_spacing.y;
+
         elf_section *sec = uisec->section;
         u32 pos = sec->content_offset;
 
         ui::begin_group(section_color, sec_padding);
 
-        ImGui::Text(" Section %s", sec->name);
+        ImGui::Text("%.1f Section %s", ImGui::GetCursorPosY(), sec->name);
 
         for_array(func, &uisec->functions)
         {
@@ -338,6 +428,8 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             {
                 instruction *inst = func->instructions + i;
 
+                ImGui::Text("%.1f", ImGui::GetCursorPosY());
+                ImGui::SameLine();
                 ImGui::Text(ctx.address_name_format, address_name(inst->address));
                 ImGui::SameLine();
                 ImGui::Text(ctx.file_offset_format, pos);
@@ -354,13 +446,14 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         }
 
         ui::end_group();
-
-        break;
     }
 
     ImGui::PopStyleColor();
 
     ImGui::PopFont();
+    ImGui::EndChild();
+    ImGui::PopStyleVar();
+    ImGui::PopStyleVar();
     ImGui::End();
 }
 
@@ -507,9 +600,14 @@ void prepare_disasm_ui_data()
             if (new_func)
             {
                 f->instruction_count = current_instruction_count;
-                current_instruction_count = 0;
 
-                f = add_at_end(&uisec->functions);
+                if (f->instruction_count != 0)
+                {
+                    current_instruction_count = 0;
+                    f = add_at_end(&uisec->functions);
+                    f->instruction_count = 0;
+                }
+
                 f->instructions = instr;
                 f->vaddr = instr->address;
                 jmp_i++;
@@ -518,7 +616,10 @@ void prepare_disasm_ui_data()
             current_instruction_count += 1;
         }
 
-        f->instruction_count = current_instruction_count;
+        if (current_instruction_count == 0)
+            uisec->functions.size--;
+        else
+            f->instruction_count = current_instruction_count;
     }
 
     for_array(usec, &ctx.sections)
@@ -576,11 +677,13 @@ int main(int argc, const char *argv[])
     mg::create_window(&window, allegrexplorer_NAME, 1600, 900);
 
     ImGuiIO *io = &ImGui::GetIO();
-    // TODO: get DPI
-    ui_font = io->Fonts->AddFontFromFileTTF("res/roboto-regular.ttf", 24);
-    mono_font = io->Fonts->AddFontFromFileTTF("res/iosevka-ss02-regular.ttf", 24);
+    float scale = mg::get_window_scaling(&window);
+    int font_size = 20 * scale;
+
+    ui_font = io->Fonts->AddFontFromFileTTF("res/roboto-regular.ttf", font_size);
+    mono_font = io->Fonts->AddFontFromFileTTF("res/iosevka-ss02-regular.ttf", font_size);
     ui::upload_fonts(&window);
-    
+
     io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     if (argc > 1)

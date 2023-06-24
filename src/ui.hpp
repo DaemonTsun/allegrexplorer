@@ -29,7 +29,6 @@ struct ui_elf_section
     instruction_parse_data* instruction_data;
 
     array<ui_allegrex_function> functions;
-    // TODO: array of functions, sorted by vaddr
 };
 
 void init(ui_elf_section *sec);
