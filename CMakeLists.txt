@@ -19,9 +19,5 @@ add_exe(allegrexplorer
         LIB allegrex 1.0.2 "${ROOT}/ext/liballegrex" INCLUDE LINK
     )
 
-copy_files(FILES "${ROOT}/res/iosevka-ss02-regular.ttf"
-                 "${ROOT}/res/roboto-regular.ttf"
-           DESTINATION "${ROOT_BIN}")
-
 # run
 add_custom_target("run_${allegrexplorer_TARGET}" COMMAND "${ROOT_BIN}/${allegrexplorer_TARGET}")

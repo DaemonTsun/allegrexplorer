@@ -2,6 +2,8 @@
 #include <assert.h>
 #include "backends/imgui_impl_vulkan.h"
 
+#include "fonts/fonts.hpp"
+
 #include "shl/format.hpp"
 #include "shl/string.hpp"
 #include "shl/array.hpp"
@@ -20,6 +22,8 @@ const ImColor function_color = COL(0xff6060ff);
 const ImColor section_text_color = COL(0x000000ff);
 ImFont *ui_font;
 ImFont *mono_font;
+ImFont *mono_bold_font;
+ImFont *mono_italic_font;
 
 static allegrexplorer_context ctx;
 
@@ -668,6 +672,22 @@ void load_psp_elf(const char *path)
     prepare_disasm_ui_data();
 }
 
+void load_fonts(mg::window *window)
+{
+    ImGuiIO *io = &ImGui::GetIO();
+    float scale = mg::get_window_scaling(window);
+    int font_size = 20 * scale;
+
+    ImFontConfig font_conf = ImFontConfig();
+    font_conf.FontDataOwnedByAtlas = false;
+
+    ui_font = io->Fonts->AddFontFromMemoryTTF(roboto_regular, size_roboto_regular, font_size, &font_conf);
+    mono_font = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_regular, size_iosevka_fixed_ss02_regular, font_size, &font_conf);
+    mono_bold_font = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_bold, size_iosevka_fixed_ss02_bold, font_size, &font_conf);
+    mono_italic_font = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_italic, size_iosevka_fixed_ss02_italic, font_size, &font_conf);
+    ui::upload_fonts(window);
+}
+
 int main(int argc, const char *argv[])
 {
     init(&ctx.disasm);
@@ -676,14 +696,9 @@ int main(int argc, const char *argv[])
     // TODO: remember window size
     mg::create_window(&window, allegrexplorer_NAME, 1600, 900);
 
+    load_fonts(&window);
+
     ImGuiIO *io = &ImGui::GetIO();
-    float scale = mg::get_window_scaling(&window);
-    int font_size = 20 * scale;
-
-    ui_font = io->Fonts->AddFontFromFileTTF("res/roboto-regular.ttf", font_size);
-    mono_font = io->Fonts->AddFontFromFileTTF("res/iosevka-ss02-regular.ttf", font_size);
-    ui::upload_fonts(&window);
-
     io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     if (argc > 1)
