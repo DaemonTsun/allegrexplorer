@@ -304,61 +304,6 @@ case argument_type::ArgumentType: \
     }
 }
 
-float get_function_height(ui_allegrex_function *func, float y_padding, float font_size, float item_spacing)
-{
-    float total_height = 0;
-
-    // top
-    total_height += y_padding;
-
-    total_height += func->instruction_count * font_size;
-
-    if (func->instruction_count > 0)
-        total_height += (func->instruction_count - 1) * item_spacing;
-    
-    // bottom
-    total_height += y_padding;
-
-    return total_height;
-}
-
-float get_section_height(ui_elf_section *section, float y_padding, float font_size, float item_spacing)
-{
-    float total_height = 0;
-
-    // header line
-    total_height += y_padding;
-    total_height += font_size;
-    total_height += item_spacing;
-
-    for_array(func, &section->functions)
-        total_height += get_function_height(func, y_padding, font_size, item_spacing);
-
-    total_height += section->functions.size * item_spacing;
-    
-    // bottom
-    total_height += y_padding;
-
-    return total_height;
-}
-
-float get_total_disassembly_height()
-{
-    auto wpadding = ImGui::GetStyle().WindowPadding;
-    float font_size = ImGui::GetFontSize();
-    auto item_spacing = ImGui::GetStyle().ItemSpacing;
-
-    float total_height = 0;
-
-    for_array(_uisec, &ctx.sections)
-        total_height += get_section_height(_uisec, wpadding.y, font_size, item_spacing.y);
-
-    if (ctx.sections.size > 0)
-        total_height += (ctx.sections.size) * item_spacing.y;
-
-    return total_height;
-}
-
 void main_panel(mg::window *window, ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
@@ -366,20 +311,18 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
     auto wsize = ImGui::GetWindowSize();
     auto wpadding = ImGui::GetStyle().WindowPadding;
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {wpadding.x, 6});
-    wpadding.y = 6;
     ui::padding sec_padding;
     sec_padding.left = 0;
     sec_padding.right = wpadding.x;
     sec_padding.top = wpadding.y;
     sec_padding.bottom = wpadding.y;
 
-    float font_size = ImGui::GetFontSize();
-    auto item_spacing = ImGui::GetStyle().ItemSpacing;
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {item_spacing.x, 16});
-    item_spacing.y = 16;
+    float y_padding = wpadding.y;
 
-    float total_height = get_total_disassembly_height();
+    float font_size = ImGui::GetFontSize();
+    float item_spacing = ImGui::GetStyle().ItemSpacing.y;
+
+    float total_height = get_total_disassembly_height(&ctx.sections);
 
     float view_min_y = ImGui::GetScrollY();
     float view_max_y = view_min_y + wsize.y;
@@ -398,7 +341,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
     for_array(_i, uisec, &ctx.sections)
     {
-        float sec_height = get_section_height(uisec, wpadding.y, font_size, item_spacing.y);
+        float sec_height = uisec->computed_height;
 
         if (current_height > view_max_y)
             break;
@@ -407,19 +350,18 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         {
             ImGui::Dummy({0.f, sec_height});
             current_height += sec_height;
-            current_height += item_spacing.y;
+            current_height += item_spacing;
             continue;
         }
 
-        // TODO: precalculate all of these and just check if its in view
         float current_sec_height = current_height;
 
-        current_sec_height += wpadding.y;
+        current_sec_height += y_padding;
         current_sec_height += font_size;
-        current_sec_height += item_spacing.y;
+        current_sec_height += item_spacing;
 
         current_height += sec_height;
-        current_height += item_spacing.y;
+        current_height += item_spacing;
 
         elf_section *sec = uisec->section;
         u32 pos = sec->content_offset;
@@ -433,7 +375,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             if (func->instruction_count == 0)
                 continue;
 
-            float func_height = get_function_height(func, wpadding.y, font_size, item_spacing.y);
+            float func_height = func->computed_height;
 
             if (current_sec_height > view_max_y)
                 break;
@@ -442,12 +384,12 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             {
                 ImGui::Dummy({0.f, func_height});
                 current_sec_height += func_height;
-                current_sec_height += item_spacing.y;
+                current_sec_height += item_spacing;
                 continue;
             }
 
             current_sec_height += func_height;
-            current_sec_height += item_spacing.y;
+            current_sec_height += item_spacing;
 
             ui::begin_group(function_color, sec_padding);
 
@@ -479,8 +421,6 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
     ImGui::PopFont();
     ImGui::EndChild();
-    ImGui::PopStyleVar();
-    ImGui::PopStyleVar();
     ImGui::End();
 }
 
@@ -683,6 +623,9 @@ void prepare_disasm_ui_data()
         max_name_len = 256;
 
     sprintf(ctx.address_name_format, "%%-%us", max_name_len);
+
+    // compute UI disassembly heights, needed for culling
+    recompute_total_disassembly_height(&ctx.sections);
 }
 
 void load_psp_elf(const char *path)
