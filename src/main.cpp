@@ -394,7 +394,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
     float current_height = 0;
 
-    printf("%f - %f\n", view_min_y, view_max_y);
+    // printf("%f - %f\n", view_min_y, view_max_y);
 
     for_array(_i, uisec, &ctx.sections)
     {
@@ -411,6 +411,13 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             continue;
         }
 
+        // TODO: precalculate all of these and just check if its in view
+        float current_sec_height = current_height;
+
+        current_sec_height += wpadding.y;
+        current_sec_height += font_size;
+        current_sec_height += item_spacing.y;
+
         current_height += sec_height;
         current_height += item_spacing.y;
 
@@ -425,6 +432,22 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         {
             if (func->instruction_count == 0)
                 continue;
+
+            float func_height = get_function_height(func, wpadding.y, font_size, item_spacing.y);
+
+            if (current_sec_height > view_max_y)
+                break;
+
+            if (current_sec_height + func_height < view_min_y)
+            {
+                ImGui::Dummy({0.f, func_height});
+                current_sec_height += func_height;
+                current_sec_height += item_spacing.y;
+                continue;
+            }
+
+            current_sec_height += func_height;
+            current_sec_height += item_spacing.y;
 
             ui::begin_group(function_color, sec_padding);
 
