@@ -103,7 +103,6 @@ void ui::end_group()
         {
             group_stack_render_data *render = group_render_stack.data + i;
             auto end = render->end;
-            end.x += render->stack_depth * 10;
             ImGui::GetWindowDrawList()->ChannelsSetCurrent(0);
             ImGui::GetWindowDrawList()->AddRectFilled(
                     render->start, end,

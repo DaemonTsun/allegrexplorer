@@ -4,6 +4,7 @@
 
 void init(ui_elf_section *sec)
 {
+    sec->computed_height = -1.f;
     init(&sec->header);
     init(&sec->functions);
 }

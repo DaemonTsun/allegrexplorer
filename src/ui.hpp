@@ -44,3 +44,5 @@ float recompute_section_height(ui_elf_section *sec);
 float recompute_total_disassembly_height(array<ui_elf_section> *sections);
 
 float get_total_disassembly_height(array<ui_elf_section> *sections);
+
+

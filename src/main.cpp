@@ -17,13 +17,15 @@
 #include "imgui_util.hpp"
 #include "ui.hpp"
 
-const ImColor section_color = COL(0xffbf98ff);
-const ImColor function_color = COL(0xff6060ff);
+ImColor section_color = COL(0xcacacaff);
+ImColor function_color = COL(0xf28944ff);
 const ImColor section_text_color = COL(0x000000ff);
 ImFont *ui_font;
 ImFont *mono_font;
 ImFont *mono_bold_font;
 ImFont *mono_italic_font;
+const float style_disassembly_y_padding = 2;
+const float style_disassembly_item_spacing = 6;
 
 static allegrexplorer_context ctx;
 
@@ -118,6 +120,11 @@ void imgui_side_panel(mg::window *window, ImGuiID dockspace_id)
                        nullptr, nullptr, VADDR_FORMAT,
                        ImGuiInputTextFlags_ReadOnly);
     ImGui::PopFont();
+
+    /*
+    ImGui::ColorPicker4("a", (float*)&section_color);
+    ImGui::ColorPicker4("b", (float*)&function_color);
+    */
 
     ImGui::End();
 }
@@ -309,6 +316,8 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Disassembly");
 
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {ImGui::GetStyle().WindowPadding.x, style_disassembly_y_padding});
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, style_disassembly_item_spacing});
     auto wsize = ImGui::GetWindowSize();
     auto wpadding = ImGui::GetStyle().WindowPadding;
     ui::padding sec_padding;
@@ -336,6 +345,9 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::PushStyleColor(ImGuiCol_Text, (u32)section_text_color);
 
     float current_height = 0;
+
+    if (ctx.sections.size > 0 && ctx.sections[0].computed_height < 0)
+        recompute_total_disassembly_height(&ctx.sections);
 
     // printf("%f - %f\n", view_min_y, view_max_y);
 
@@ -368,9 +380,9 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
         ui::begin_group(section_color, sec_padding);
 
-        ImGui::Text("%.1f Section %s", ImGui::GetCursorPosY(), sec->name);
+        ImGui::Text("Section %s", sec->name);
 
-        for_array(func, &uisec->functions)
+        for_array(_fi, func, &uisec->functions)
         {
             if (func->instruction_count == 0)
                 continue;
@@ -397,8 +409,10 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             {
                 instruction *inst = func->instructions + i;
 
+                /*
                 ImGui::Text("%.1f", ImGui::GetCursorPosY());
                 ImGui::SameLine();
+                */
                 ImGui::Text(ctx.address_name_format, address_name(inst->address));
                 ImGui::SameLine();
                 ImGui::Text(ctx.file_offset_format, pos);
@@ -421,6 +435,8 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
     ImGui::PopFont();
     ImGui::EndChild();
+    ImGui::PopStyleVar();
+    ImGui::PopStyleVar();
     ImGui::End();
 }
 
@@ -623,9 +639,6 @@ void prepare_disasm_ui_data()
         max_name_len = 256;
 
     sprintf(ctx.address_name_format, "%%-%us", max_name_len);
-
-    // compute UI disassembly heights, needed for culling
-    recompute_total_disassembly_height(&ctx.sections);
 }
 
 void load_psp_elf(const char *path)
