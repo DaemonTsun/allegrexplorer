@@ -2,7 +2,7 @@
 
 Work-in-progress disassembly tool for PSP (E)BOOT.BIN files.
 
-![image](https://github.com/DaemonTsun/allegrexplorer/assets/96687758/4353e611-eb94-4146-b6a8-040bf65af393)
+![image](https://github.com/DaemonTsun/allegrexplorer/assets/96687758/cdba9f99-7731-45e2-9828-2efe1c3e27a4)
 
 ## Features
 
