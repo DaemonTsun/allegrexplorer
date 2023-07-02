@@ -20,41 +20,8 @@
 ImColor section_color = COL(0xcacacaff);
 ImColor function_color = COL(0xf28944ff);
 const ImColor section_text_color = COL(0x000000ff);
-ImFont *ui_font;
-ImFont *mono_font;
-ImFont *mono_bold_font;
-ImFont *mono_italic_font;
 const float style_disassembly_y_padding = 2;
 const float style_disassembly_item_spacing = 6;
-
-static allegrexplorer_context ctx;
-
-const char *address_name(u32 addr)
-{
-    // symbols
-    elf_symbol *sym = ::search(&ctx.disasm.psp_module.symbols, &addr);
-
-    if (sym != nullptr)
-        return sym->name;
-
-    // imports
-    function_import *fimp = ::search(&ctx.disasm.psp_module.imports, &addr);
-
-    if (fimp != nullptr)
-        return fimp->function->name;
-
-    /*
-    // exports (unoptimized, but probably not too common)
-    for_array(mod, conf->exported_modules)
-    {
-        for_array(func, &mod->functions)
-            if (func->address == addr)
-                return func->function->name;
-    }
-    */
-
-    return "";
-}
 
 void imgui_menu_bar(mg::window *window)
 {
@@ -62,12 +29,14 @@ void imgui_menu_bar(mg::window *window)
     {
         if (ImGui::BeginMenu("File"))
         {
+            /*
             if (ImGui::MenuItem("Open...", "Ctrl+O"))
             {
                 // TODO: implement this...
                 // is there really no default file picker in imgui?
                 // All the other ones I found were pretty bad...
             }
+            */
 
             if (ImGui::MenuItem("Close", "Ctrl+W"))
                 mg::close_window(window);
@@ -87,7 +56,7 @@ void imgui_side_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Module Info");
 
-    ImGui::PushFont(mono_font);
+    ImGui::PushFont(ctx.ui.fonts.mono);
     ImGui::InputText("Module Name", mod_info->name, PRX_MODULE_NAME_LEN, ImGuiInputTextFlags_ReadOnly);
 
     int attr = mod_info->attribute;
@@ -129,188 +98,6 @@ void imgui_side_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
-void ui_instruction_name_text(const instruction *inst)
-{
-    const char *name = get_mnemonic_name(inst->mnemonic);
-
-    if (requires_vfpu_suffix(inst->mnemonic))
-    {
-        vfpu_size sz = get_vfpu_size(inst->opcode);
-        const char *suf = size_suffix(sz);
-        auto fullname = tformat("%%\0"_cs, name, suf);
-
-        ImGui::Text(DISASM_MNEMONIC_FORMAT, fullname.c_str);
-    }
-    else
-        ImGui::Text(DISASM_MNEMONIC_FORMAT, name);
-}
-
-void ui_instruction_arguments(instruction *inst)
-{
-    bool first = true;
-
-    for (u32 i = 0; i < inst->argument_count; ++i)
-    {
-        ImGui::SameLine();
-
-        instruction_argument *arg = inst->arguments + i;
-        argument_type arg_type = inst->argument_types[i];
-
-        first = false;
-
-        switch (arg_type)
-        {
-        case argument_type::Invalid:
-            ImGui::Text("[?invalid?]");
-            break;
-
-        case argument_type::MIPS_Register:
-            ImGui::Text("%s", register_name(arg->mips_register));
-            break;
-
-        case argument_type::MIPS_FPU_Register:
-            ImGui::Text("%s", register_name(arg->mips_fpu_register));
-            break;
-
-        case argument_type::VFPU_Register:
-            ImGui::Text("%s%s", register_name(arg->vfpu_register),
-                                size_suffix(arg->vfpu_register.size));
-            break;
-
-        case argument_type::VFPU_Matrix:
-            ImGui::Text("%s%s", matrix_name(arg->vfpu_matrix)
-                              , size_suffix(arg->vfpu_matrix.size));
-            break;
-
-        case argument_type::VFPU_Condition:
-            ImGui::Text("%s", vfpu_condition_name(arg->vfpu_condition));
-            break;
-
-        case argument_type::VFPU_Constant:
-            ImGui::Text("%s", vfpu_constant_name(arg->vfpu_constant));
-            break;
-
-        case argument_type::VFPU_Prefix_Array:
-        {
-            vfpu_prefix_array *arr = &arg->vfpu_prefix_array;
-            ImGui::Text("[%s,%s,%s,%s]", vfpu_prefix_name(arr->data[0])
-                                       , vfpu_prefix_name(arr->data[1])
-                                       , vfpu_prefix_name(arr->data[2])
-                                       , vfpu_prefix_name(arr->data[3])
-            );
-            break;
-        }
-
-        case argument_type::VFPU_Destination_Prefix_Array:
-        {
-            vfpu_destination_prefix_array *arr = &arg->vfpu_destination_prefix_array;
-            ImGui::Text("[%s,%s,%s,%s]", vfpu_destination_prefix_name(arr->data[0])
-                                       , vfpu_destination_prefix_name(arr->data[1])
-                                       , vfpu_destination_prefix_name(arr->data[2])
-                                       , vfpu_destination_prefix_name(arr->data[3])
-            );
-            break;
-        }
-
-        case argument_type::VFPU_Rotation_Array:
-        {
-            vfpu_rotation_array *arr = &arg->vfpu_rotation_array;
-            ImGui::Text("[%s", vfpu_rotation_name(arr->data[0]));
-
-            for (int i = 1; i < arr->size; ++i)
-                ImGui::Text(",%s", vfpu_rotation_name(arr->data[i]));
-
-            ImGui::Text("]");
-            break;
-        }
-
-        case argument_type::PSP_Function_Pointer:
-        {
-            const psp_function *sc = arg->psp_function_pointer;
-            ImGui::Text("%s <0x%08x>", sc->name, sc->nid);
-            break;
-        }
-
-#define ARG_TYPE_FORMAT(out, arg, ArgumentType, UnionMember, FMT) \
-case argument_type::ArgumentType: \
-    ImGui::Text(FMT, arg->UnionMember.data);\
-    break;
-
-        ARG_TYPE_FORMAT(out, arg, Shift, shift, "%#x");
-
-        case argument_type::Coprocessor_Register:
-        {
-            coprocessor_register *reg = &arg->coprocessor_register;
-            ImGui::Text("[%u, %u]", reg->rd, reg->sel);
-            break;
-        }
-
-        case argument_type::Base_Register:
-            ImGui::Text("(%s)", register_name(arg->base_register.data));
-            break;
-
-        case argument_type::Jump_Address:
-        {
-            u32 addr = arg->jump_address.data;
-            const char *name = address_name(addr);
-
-            if (compare_strings(name, "") != 0)
-                ImGui::Text("%s", name);
-            else
-                ImGui::Text("func_%08x", addr);
-
-            break;
-        }
-
-        case argument_type::Branch_Address:
-        {
-            u32 addr = arg->branch_address.data;
-            ImGui::Text(".L%08x", addr);
-            break;
-        }
-
-        ARG_TYPE_FORMAT(out, arg, Memory_Offset, memory_offset, "%#x");
-        ARG_TYPE_FORMAT(out, arg, Immediate_u32, immediate_u32, "%#x");
-        case argument_type::Immediate_s32:
-        {
-            s32 d = arg->immediate_s32.data;
-
-            if (d < 0)
-                ImGui::Text("-%#x", -d);
-            else
-                ImGui::Text("%#x", d);
-
-            break;
-        }
-
-        ARG_TYPE_FORMAT(out, arg, Immediate_u16, immediate_u16, "%#x");
-        case argument_type::Immediate_s16:
-        {
-            s16 d = arg->immediate_s16.data;
-
-            if (d < 0)
-                ImGui::Text("-%#x", -d);
-            else
-                ImGui::Text("%#x", d);
-
-            break;
-        }
-
-        ARG_TYPE_FORMAT(out, arg, Immediate_u8,  immediate_u8,  "%#x");
-        ARG_TYPE_FORMAT(out, arg, Immediate_float, immediate_float, "%f");
-        ARG_TYPE_FORMAT(out, arg, Condition_Code, condition_code, "(CC[%#x])");
-        ARG_TYPE_FORMAT(out, arg, Bitfield_Pos, bitfield_pos, "%#x");
-        ARG_TYPE_FORMAT(out, arg, Bitfield_Size, bitfield_size, "%#x");
-
-        // case argument_type::Extra:
-        ARG_TYPE_FORMAT(out, arg, String, string_argument, "%s");
-
-        default:
-            break;
-        }
-    }
-}
-
 void main_panel(mg::window *window, ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
@@ -320,18 +107,16 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, style_disassembly_item_spacing});
     auto wsize = ImGui::GetWindowSize();
     auto wpadding = ImGui::GetStyle().WindowPadding;
-    ui::padding sec_padding;
-    sec_padding.left = 0;
-    sec_padding.right = wpadding.x;
-    sec_padding.top = wpadding.y;
-    sec_padding.bottom = wpadding.y;
 
     float y_padding = wpadding.y;
 
     float font_size = ImGui::GetFontSize();
     float item_spacing = ImGui::GetStyle().ItemSpacing.y;
 
-    float total_height = get_total_disassembly_height(&ctx.sections);
+    if (ctx.ui.computed_height < 0)
+        recompute_total_disassembly_height(&ctx.ui);
+
+    float total_height = ctx.ui.computed_height;
 
     float view_min_y = ImGui::GetScrollY();
     float view_max_y = view_min_y + wsize.y;
@@ -341,17 +126,15 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
                       false,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    ImGui::PushFont(mono_font);
+    ImGui::PushFont(ctx.ui.fonts.mono);
     ImGui::PushStyleColor(ImGuiCol_Text, (u32)section_text_color);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0, y_padding});
 
     float current_height = 0;
 
-    if (ctx.sections.size > 0 && ctx.sections[0].computed_height < 0)
-        recompute_total_disassembly_height(&ctx.sections);
+    // printf("visible range: %f - %f\n", view_min_y, view_max_y);
 
-    // printf("%f - %f\n", view_min_y, view_max_y);
-
-    for_array(_i, uisec, &ctx.sections)
+    for_array(_i, uisec, &ctx.ui.sections)
     {
         float sec_height = uisec->computed_height;
 
@@ -378,7 +161,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         elf_section *sec = uisec->section;
         u32 pos = sec->content_offset;
 
-        ui::begin_group(section_color, sec_padding);
+        ui::begin_group(section_color);
 
         ImGui::Text("Section %s", sec->name);
 
@@ -403,7 +186,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             current_sec_height += func_height;
             current_sec_height += item_spacing;
 
-            ui::begin_group(function_color, sec_padding);
+            ui::begin_group(function_color);
 
             for (u64 i = 0; i < func->instruction_count; ++i)
             {
@@ -431,6 +214,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         ui::end_group();
     }
 
+    ImGui::PopStyleVar();
     ImGui::PopStyleColor();
 
     ImGui::PopFont();
@@ -450,24 +234,24 @@ void sections_panel(mg::window *window, ImGuiID dockspace_id)
 
     if (ImGui::InputText("Search", search_buf, max_sec_name_size))
     {
-        clear(&ctx.section_search_results);
+        clear(&ctx.ui.section_search_results);
 
         if (!is_blank(search_buf))
         {
-            for_array(usec, &ctx.sections)
+            for_array(usec, &ctx.ui.sections)
                 if (index_of(usec->header, search_buf) >= 0)
-                    add_at_end(&ctx.section_search_results, usec);
+                    add_at_end(&ctx.ui.section_search_results, usec);
         }
         else
         {
-            for_array(usec, &ctx.sections)
-                add_at_end(&ctx.section_search_results, usec);
+            for_array(usec, &ctx.ui.sections)
+                add_at_end(&ctx.ui.section_search_results, usec);
         }
     }
 
-    ImGui::PushFont(mono_font);
+    ImGui::PushFont(ctx.ui.fonts.mono);
 
-    for_array(usec_, &ctx.section_search_results)
+    for_array(usec_, &ctx.ui.section_search_results)
     {
         ui_elf_section *usec = *usec_;
 
@@ -543,14 +327,14 @@ constexpr inline T hex_digits(T x)
 
 void prepare_disasm_ui_data()
 {
-    reserve(&ctx.sections, ctx.disasm.psp_module.sections.size);
+    reserve(&ctx.ui.sections, ctx.disasm.psp_module.sections.size);
 
     jump_destinations *jumps = &ctx.disasm.jumps;
     u32 jmp_i = 0;
 
     for_array(i, sec, &ctx.disasm.psp_module.sections)
     {
-        ui_elf_section *uisec = ::add_at_end(&ctx.sections);
+        ui_elf_section *uisec = ::add_at_end(&ctx.ui.sections);
         init(uisec);
 
         uisec->header = copy_string(tformat(VADDR_FORMAT " %s", sec->vaddr, sec->name));
@@ -605,13 +389,13 @@ void prepare_disasm_ui_data()
             f->instruction_count = current_instruction_count;
     }
 
-    for_array(usec, &ctx.sections)
-        ::add_at_end(&ctx.section_search_results, usec);
+    for_array(usec, &ctx.ui.sections)
+        ::add_at_end(&ctx.ui.section_search_results, usec);
 
     // offset formatting, we only want as many digits as necessary, not more
-    if (ctx.sections.size > 0)
+    if (ctx.ui.sections.size > 0)
     {
-        elf_section *last_section = (ctx.sections.data + (ctx.sections.size - 1))->section;
+        elf_section *last_section = (ctx.ui.sections.data + (ctx.ui.sections.size - 1))->section;
         u32 max_instruction_offset = last_section->content_offset + last_section->content_size;
         u32 pos_digits = hex_digits(max_instruction_offset);
 
@@ -660,10 +444,10 @@ void load_fonts(mg::window *window)
     ImFontConfig font_conf = ImFontConfig();
     font_conf.FontDataOwnedByAtlas = false;
 
-    ui_font = io->Fonts->AddFontFromMemoryTTF(roboto_regular, size_roboto_regular, font_size, &font_conf);
-    mono_font = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_regular, size_iosevka_fixed_ss02_regular, font_size, &font_conf);
-    mono_bold_font = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_bold, size_iosevka_fixed_ss02_bold, font_size, &font_conf);
-    mono_italic_font = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_italic, size_iosevka_fixed_ss02_italic, font_size, &font_conf);
+    ctx.ui.fonts.ui = io->Fonts->AddFontFromMemoryTTF(roboto_regular, size_roboto_regular, font_size, &font_conf);
+    ctx.ui.fonts.mono = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_regular, size_iosevka_fixed_ss02_regular, font_size, &font_conf);
+    ctx.ui.fonts.mono_bold = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_bold, size_iosevka_fixed_ss02_bold, font_size, &font_conf);
+    ctx.ui.fonts.mono_italic = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_italic, size_iosevka_fixed_ss02_italic, font_size, &font_conf);
     ui::upload_fonts(window);
 }
 

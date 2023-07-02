@@ -7,13 +7,13 @@
 struct group_stack_data
 {
     ImColor color;
-    ui::padding padding;
+    ImVec2 padding;
 };
 
 struct group_stack_render_data
 {
     ImColor color;
-    ui::padding padding;
+    ImVec2 padding;
     ImVec2 start;
     ImVec2 end;
     u64 stack_depth;
@@ -38,30 +38,25 @@ static XBounds calculateSectionBoundsX(float padding_left, float padding_right) 
             padding_right};
 }
 
-void ui::begin_group(ImColor col, ui::padding padding)
+void ui::begin_group(ImColor col)
 {
     if (group_stack.size == 0)
         ImGui::GetWindowDrawList()->ChannelsSplit(2);
 
     ImGui::GetWindowDrawList()->ChannelsSetCurrent(1);
 
-    auto wpadding = ImGui::GetStyle().WindowPadding;
-
-    if (padding.left < 0)  padding.left  = wpadding.x;
-    if (padding.right < 0) padding.right = wpadding.x;
-    if (padding.top < 0)    padding.top    = wpadding.y;
-    if (padding.bottom < 0) padding.bottom = wpadding.y;
+    ImVec2 padding = ImGui::GetStyle().WindowPadding;
 
     ::add_at_end(&group_stack, group_stack_data{col, padding});
 
     auto *window = ImGui::GetCurrentWindow();
-    auto boundsX = calculateSectionBoundsX(padding.left, padding.right);
+    auto boundsX = calculateSectionBoundsX(padding.x, padding.x);
 
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + padding.top);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + padding.y);
     ImGui::BeginGroup();
 
-    if (padding.left > 0)
-        ImGui::Indent(padding.left);
+    if (padding.x > 0)
+        ImGui::Indent(padding.x);
 
     ImGui::PushClipRect(ImVec2(boundsX.start, window->ClipRect.Min.y),
                         ImVec2(boundsX.end, window->ClipRect.Max.y), false);
@@ -76,12 +71,12 @@ void ui::end_group()
     group_stack_data stack_data = group_stack[group_stack.size - 1];
     ::remove_from_end(&group_stack);
 
-    auto padding = stack_data.padding;
+    ImVec2 padding = stack_data.padding;
 
     ImGui::PopClipRect();
 
-    if (padding.left > 0)
-        ImGui::Unindent(padding.left);
+    if (padding.x > 0)
+        ImGui::Unindent(padding.x);
 
     ImGui::EndGroup();
 
@@ -91,8 +86,8 @@ void ui::end_group()
     auto rect_min = ImGui::GetItemRectMin();
     auto rect_max = ImGui::GetItemRectMax();
 
-    auto panel_min = ImVec2(rect_min.x, rect_min.y - padding.top);
-    auto panel_max = ImVec2(rect_max.x + padding.right, rect_max.y + padding.bottom);
+    auto panel_min = ImVec2(rect_min.x, rect_min.y - padding.y);
+    auto panel_max = ImVec2(rect_max.x + padding.x, rect_max.y + padding.y);
 
     ::add_at_end(&group_render_stack,
                  group_stack_render_data{stack_data.color, padding, panel_min, panel_max, render_stack_depth});
@@ -115,7 +110,7 @@ void ui::end_group()
         ::clear(&group_render_stack);
     }
 
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + padding.bottom);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + padding.y);
 
     // ImGui::Spacing();
 }

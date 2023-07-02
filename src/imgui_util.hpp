@@ -1,4 +1,6 @@
 
+// header for imgui utility functions
+
 #pragma once
 
 #include "shl/endian.hpp"
@@ -6,15 +8,7 @@
 
 namespace ui
 {
-struct padding
-{
-    float left;
-    float right;
-    float top;
-    float bottom;
-};
-
-void begin_group(ImColor col = 0, ui::padding padding = {-1, -1, -1, -1});
+void begin_group(ImColor col = 0);
 void end_group();
 }
 

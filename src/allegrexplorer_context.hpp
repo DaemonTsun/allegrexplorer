@@ -1,14 +1,14 @@
 
 #pragma once
 
+#include "allegrex/disassemble.hpp"
 #include "ui.hpp"
 
 struct allegrexplorer_context
 {
     psp_disassembly disasm;
 
-    array<ui_elf_section> sections;
-    array<ui_elf_section*> section_search_results;
+    ui_context ui;
 
     char file_offset_format[32];
     char address_name_format[32];
@@ -16,3 +16,8 @@ struct allegrexplorer_context
 
 void init(allegrexplorer_context *ctx);
 void free(allegrexplorer_context *ctx);
+
+extern allegrexplorer_context ctx;
+
+// gets the name of the address from the context
+const char *address_name(u32 vaddr);

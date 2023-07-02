@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "imgui.h"
+
 #include "allegrex/disassemble.hpp"
 #include "shl/array.hpp"
 #include "shl/string.hpp"
@@ -38,11 +40,28 @@ struct ui_elf_section
 void init(ui_elf_section *sec);
 void free(ui_elf_section *sec);
 
+struct ui_context
+{
+    array<ui_elf_section> sections;
+    array<ui_elf_section*> section_search_results;
+    float computed_height;
+
+    struct _fonts
+    {
+        ImFont *ui;
+        ImFont *mono;
+        ImFont *mono_bold;
+        ImFont *mono_italic;
+    } fonts;
+};
+
+void init(ui_context *ctx);
+void free(ui_context *ctx);
+
 // call after setting up fonts / when DPI changes
 float recompute_function_height(ui_allegrex_function *func);
 float recompute_section_height(ui_elf_section *sec);
-float recompute_total_disassembly_height(array<ui_elf_section> *sections);
+float recompute_total_disassembly_height(ui_context *ctx);
 
-float get_total_disassembly_height(array<ui_elf_section> *sections);
-
-
+void ui_instruction_name_text(const instruction *inst);
+void ui_instruction_arguments(instruction *inst);
