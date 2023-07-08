@@ -17,6 +17,7 @@ struct allegrexplorer_context
 void init(allegrexplorer_context *ctx);
 void free(allegrexplorer_context *ctx);
 
+// the global context
 extern allegrexplorer_context ctx;
 
 // gets the name of the address from the context

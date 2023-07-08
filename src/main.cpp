@@ -20,8 +20,6 @@
 ImColor section_color = COL(0xcacacaff);
 ImColor function_color = COL(0xf28944ff);
 const ImColor section_text_color = COL(0x000000ff);
-const float style_disassembly_y_padding = 2;
-const float style_disassembly_item_spacing = 6;
 
 void imgui_menu_bar(mg::window *window)
 {
@@ -103,8 +101,8 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Disassembly");
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {ImGui::GetStyle().WindowPadding.x, style_disassembly_y_padding});
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, style_disassembly_item_spacing});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {ImGui::GetStyle().WindowPadding.x, ui_style_disassembly_y_padding});
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, ui_style_disassembly_item_spacing});
     auto wsize = ImGui::GetWindowSize();
     auto wpadding = ImGui::GetStyle().WindowPadding;
 
@@ -117,6 +115,8 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         recompute_total_disassembly_height(&ctx.ui);
 
     float total_height = ctx.ui.computed_height;
+
+    ui_do_jump_to_target_address();
 
     float view_min_y = ImGui::GetScrollY();
     float view_max_y = view_min_y + wsize.y;

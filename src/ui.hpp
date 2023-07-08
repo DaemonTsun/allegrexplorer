@@ -13,15 +13,18 @@
 #define DISASM_LINE_FORMAT "%08x %08x"
 #define DISASM_MNEMONIC_FORMAT "%-10s"
 
+const float ui_style_disassembly_y_padding = 2;
+const float ui_style_disassembly_item_spacing = 6;
+
 struct ui_allegrex_function
 {
     elf_section *section;
     u32 vaddr;
-    u32 max_vaddr; // the last vaddr in this function
     instruction *instructions;
     u64 instruction_count;
 
     float computed_height;
+    float computed_y_offset;
 };
 
 struct ui_elf_section
@@ -35,6 +38,7 @@ struct ui_elf_section
     array<ui_allegrex_function> functions;
 
     float computed_height;
+    float computed_y_offset;
 };
 
 void init(ui_elf_section *sec);
@@ -53,6 +57,9 @@ struct ui_context
         ImFont *mono_bold;
         ImFont *mono_italic;
     } fonts;
+
+    u32 jump_address;
+    bool do_jump;
 };
 
 void init(ui_context *ctx);
@@ -63,5 +70,8 @@ float recompute_function_height(ui_allegrex_function *func);
 float recompute_section_height(ui_elf_section *sec);
 float recompute_total_disassembly_height(ui_context *ctx);
 
+float get_y_offset_of_address(u32 vaddr);
+
 void ui_instruction_name_text(const instruction *inst);
 void ui_instruction_arguments(instruction *inst);
+void ui_do_jump_to_target_address();

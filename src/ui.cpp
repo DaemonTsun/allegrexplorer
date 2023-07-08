@@ -51,9 +51,9 @@ float _recompute_function_height(ui_allegrex_function *func, float y_padding, fl
 
 float recompute_function_height(ui_allegrex_function *func)
 {
-    float y_padding = ImGui::GetStyle().WindowPadding.y;
+    float y_padding = ui_style_disassembly_y_padding;
+    float item_spacing = ui_style_disassembly_item_spacing;
     float font_size = ImGui::GetFontSize();
-    float item_spacing = ImGui::GetStyle().ItemSpacing.y;
     
     return _recompute_function_height(func, y_padding, font_size, item_spacing);
 }
@@ -67,8 +67,11 @@ float _recompute_section_height(ui_elf_section *sec, float y_padding, float font
     total_height += font_size;
     total_height += item_spacing;
 
-    for_array(func, &sec->functions)
+    for_array(_i, func, &sec->functions)
+    {
+        func->computed_y_offset = total_height + _i * item_spacing;
         total_height += _recompute_function_height(func, y_padding, font_size, item_spacing);
+    }
 
     total_height += sec->functions.size * item_spacing;
     
@@ -82,23 +85,26 @@ float _recompute_section_height(ui_elf_section *sec, float y_padding, float font
 
 float recompute_section_height(ui_elf_section *sec)
 {
-    float y_padding = ImGui::GetStyle().WindowPadding.y;
+    float y_padding = ui_style_disassembly_y_padding;
+    float item_spacing = ui_style_disassembly_item_spacing;
     float font_size = ImGui::GetFontSize();
-    float item_spacing = ImGui::GetStyle().ItemSpacing.y;
     
     return _recompute_section_height(sec, y_padding, font_size, item_spacing);
 }
 
 float recompute_total_disassembly_height(ui_context *ctx)
 {
-    float y_padding = ImGui::GetStyle().WindowPadding.y;
+    float y_padding = ui_style_disassembly_y_padding;
+    float item_spacing = ui_style_disassembly_item_spacing;
     float font_size = ImGui::GetFontSize();
-    float item_spacing = ImGui::GetStyle().ItemSpacing.y;
 
     float total_height = 0;
 
-    for_array(_uisec, &ctx->sections)
+    for_array(_i, _uisec, &ctx->sections)
+    {
+        _uisec->computed_y_offset = total_height + _i * item_spacing;
         total_height += _recompute_section_height(_uisec, y_padding, font_size, item_spacing);
+    }
 
     if (ctx->sections.size > 0)
         total_height += (ctx->sections.size) * item_spacing;
@@ -108,19 +114,47 @@ float recompute_total_disassembly_height(ui_context *ctx)
     return total_height;
 }
 
-float get_total_disassembly_height(array<ui_elf_section> *sections)
+float get_y_offset_of_address(u32 vaddr)
 {
-    float item_spacing = ImGui::GetStyle().ItemSpacing.y;
+    // we're assuming disassembly height has been computed
+    float y_padding = ui_style_disassembly_y_padding;
+    float item_spacing = ui_style_disassembly_item_spacing;
+    float font_size = ImGui::GetFontSize();
 
-    float total_height = 0;
+    float ret = -1.f;
 
-    for_array(_uisec, sections)
-        total_height += _uisec->computed_height;
+    for_array(uisec, &ctx.ui.sections)
+    {
+        u32 sec_vaddr = uisec->section->vaddr; 
 
-    if (sections->size > 0)
-        total_height += (sections->size) * item_spacing;
+        if (vaddr < sec_vaddr)
+            break;
 
-    return total_height;
+        u64 sec_max_vaddr = sec_vaddr + (uisec->instruction_data->instructions.size * sizeof(u32));
+        
+        if (vaddr > sec_max_vaddr)
+            continue;
+
+        // got the section the vaddr is probably in, find function
+        for_array(func, &uisec->functions)
+        {
+            if (vaddr < func->vaddr)
+                break;
+
+            u64 func_max_vaddr = func->vaddr + (func->instruction_count * sizeof(u32));
+
+            if (vaddr > func_max_vaddr)
+                continue;
+
+            u32 nth_instr = (vaddr - func->vaddr) / sizeof(u32);
+
+            ret = func->computed_y_offset + y_padding + nth_instr * (font_size + item_spacing);
+        }
+
+        break;
+    }
+    
+    return ret;
 }
 
 void ui_instruction_name_text(const instruction *inst)
@@ -305,3 +339,28 @@ case argument_type::ArgumentType: \
     }
 }
 
+void ui_do_jump_to_target_address()
+{
+    if (!ctx.ui.do_jump)
+        return;
+
+    auto wsize = ImGui::GetWindowSize();
+    float total_height = ctx.ui.computed_height;
+
+    ctx.ui.do_jump = false;
+    
+    float offset = get_y_offset_of_address(ctx.ui.jump_address);
+
+    if (offset < 0.f)
+        return;
+
+    offset -= wsize.y / 2;
+
+    if (offset < 0.f)
+        offset = 0;
+
+    if (offset > total_height - wsize.y)
+        offset = total_height - wsize.y;
+
+    ImGui::SetScrollY(offset);
+}
