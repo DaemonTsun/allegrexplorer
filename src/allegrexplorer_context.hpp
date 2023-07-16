@@ -22,3 +22,5 @@ extern allegrexplorer_context ctx;
 
 // gets the name of the address from the context
 const char *address_name(u32 vaddr);
+// same thing as address_name, but gives unnamed functions and branches labels too
+const char *address_label(u32 addr);

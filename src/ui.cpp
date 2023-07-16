@@ -1,5 +1,8 @@
 
+#include <stdarg.h>
 #include "shl/format.hpp"
+#include "shl/string.hpp"
+
 #include "allegrexplorer_context.hpp"
 #include "ui.hpp"
 
@@ -280,12 +283,9 @@ case argument_type::ArgumentType: \
         case argument_type::Jump_Address:
         {
             u32 addr = arg->jump_address.data;
-            const char *name = address_name(addr);
+            const char *name = address_label(addr);
 
-            if (compare_strings(name, "") != 0)
-                ImGui::Text("%s", name);
-            else
-                ImGui::Text("func_%08x", addr);
+            ui_address_button(addr, name);
 
             break;
         }
@@ -293,7 +293,7 @@ case argument_type::ArgumentType: \
         case argument_type::Branch_Address:
         {
             u32 addr = arg->branch_address.data;
-            ImGui::Text(".L%08x", addr);
+            ui_address_button(addr, ".L%08x", addr);
             break;
         }
 
@@ -339,6 +339,12 @@ case argument_type::ArgumentType: \
     }
 }
 
+void ui_set_jump_target_address(u32 address)
+{
+    ctx.ui.do_jump = true;
+    ctx.ui.jump_address = address;
+}
+
 void ui_do_jump_to_target_address()
 {
     if (!ctx.ui.do_jump)
@@ -354,7 +360,7 @@ void ui_do_jump_to_target_address()
     if (offset < 0.f)
         return;
 
-    offset -= wsize.y / 2;
+    // offset -= wsize.y / 2;
 
     if (offset < 0.f)
         offset = 0;
@@ -363,4 +369,29 @@ void ui_do_jump_to_target_address()
         offset = total_height - wsize.y;
 
     ImGui::SetScrollY(offset);
+}
+
+void ui_address_button(u32 target_address, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    static char _buf[256];
+    const char *display_text = _buf;
+
+    if (index_of(to_const_string(fmt), '%') == -1)
+        display_text = fmt;
+    else
+    {
+        int len = vsnprintf(_buf, 256, fmt, args);
+
+        if (len < 0)
+            return;
+    }
+
+    if (ImGui::SmallButton(display_text))
+        ui_set_jump_target_address(target_address);
+
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("%08x", target_address);
 }

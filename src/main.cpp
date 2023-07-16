@@ -196,7 +196,14 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
                 ImGui::Text("%.1f", ImGui::GetCursorPosY());
                 ImGui::SameLine();
                 */
-                ImGui::Text(ctx.address_name_format, address_name(inst->address));
+                if (ctx.ui.jump_address == inst->address)
+                    ImGui::PushFont(ctx.ui.fonts.mono_bold);
+
+                ImGui::Text(ctx.address_name_format, address_label(inst->address));
+
+                if (ctx.ui.jump_address == inst->address)
+                    ImGui::PopFont();
+
                 ImGui::SameLine();
                 ImGui::Text(ctx.file_offset_format, pos);
                 ImGui::SameLine();
