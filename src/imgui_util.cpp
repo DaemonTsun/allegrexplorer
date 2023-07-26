@@ -38,7 +38,7 @@ static XBounds calculateSectionBoundsX(float padding_left, float padding_right) 
             padding_right};
 }
 
-void ui::begin_group(ImColor col)
+void begin_group(ImColor col)
 {
     if (group_stack.size == 0)
         ImGui::GetWindowDrawList()->ChannelsSplit(2);
@@ -64,7 +64,7 @@ void ui::begin_group(ImColor col)
     render_stack_depth++;
 }
 
-void ui::end_group()
+void end_group()
 {
     assert(group_stack.size > 0);
 

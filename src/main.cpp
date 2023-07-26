@@ -15,11 +15,10 @@
 #include "allegrexplorer_info.hpp"
 #include "allegrexplorer_context.hpp"
 #include "imgui_util.hpp"
+#include "colors.hpp"
 #include "ui.hpp"
 
-ImColor section_color = COL(0xcacacaff);
-ImColor function_color = COL(0xf28944ff);
-const ImColor section_text_color = COL(0x000000ff);
+bool show_debug_info = false;
 
 void imgui_menu_bar(mg::window *window)
 {
@@ -38,6 +37,13 @@ void imgui_menu_bar(mg::window *window)
 
             if (ImGui::MenuItem("Close", "Ctrl+W"))
                 mg::close_window(window);
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("View"))
+        {
+            ImGui::MenuItem("Toggle debug info", nullptr, &show_debug_info);
 
             ImGui::EndMenu();
         }
@@ -121,18 +127,19 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
     float view_min_y = ImGui::GetScrollY();
     float view_max_y = view_min_y + wsize.y;
 
+    ctx.debug.view_min_y = view_min_y;
+    ctx.debug.view_max_y = view_max_y;
+
     ImGui::BeginChild("content",
                       {wsize.x, total_height},
                       false,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     ImGui::PushFont(ctx.ui.fonts.mono);
-    ImGui::PushStyleColor(ImGuiCol_Text, (u32)section_text_color);
+    ImGui::PushStyleColor(ImGuiCol_Text, (u32)colors::section_text_color);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0, y_padding});
 
     float current_height = 0;
-
-    // printf("visible range: %f - %f\n", view_min_y, view_max_y);
 
     for_array(_i, uisec, &ctx.ui.sections)
     {
@@ -161,7 +168,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         elf_section *sec = uisec->section;
         u32 pos = sec->content_offset;
 
-        ui::begin_group(section_color);
+        begin_group(colors::section_color);
 
         ImGui::Text("Section %s", sec->name);
 
@@ -186,16 +193,18 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             current_sec_height += func_height;
             current_sec_height += item_spacing;
 
-            ui::begin_group(function_color);
+            begin_group(colors::function_color);
 
             for (u64 i = 0; i < func->instruction_count; ++i)
             {
                 instruction *inst = func->instructions + i;
 
-                /*
-                ImGui::Text("%.1f", ImGui::GetCursorPosY());
-                ImGui::SameLine();
-                */
+                if (show_debug_info)
+                {
+                    ImGui::Text("%.1f", ImGui::GetCursorPosY());
+                    ImGui::SameLine();
+                }
+
                 if (ctx.ui.jump_address == inst->address)
                     ImGui::PushFont(ctx.ui.fonts.mono_bold);
 
@@ -215,10 +224,10 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
                 pos += sizeof(u32);
             }
 
-            ui::end_group();
+            end_group();
         }
 
-        ui::end_group();
+        end_group();
     }
 
     ImGui::PopStyleVar();
@@ -289,6 +298,17 @@ void sections_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
+void debug_info_panel(mg::window *window, ImGuiID dockspace_id)
+{
+    ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+    ImGui::Begin("Debug Info");
+
+    ImGui::Text("View range: %.0f - %.0f", ctx.debug.view_min_y, ctx.debug.view_max_y);
+
+    ImGui::End();
+}
+
+
 void update(mg::window *window, double dt)
 {
     ui::new_frame(window);
@@ -312,6 +332,9 @@ void update(mg::window *window, double dt)
     imgui_side_panel(window, dockspace_id);
     main_panel(window, dockspace_id);
     sections_panel(window, dockspace_id);
+
+    if (show_debug_info)
+        debug_info_panel(window, dockspace_id);
 
     ImGui::End();
 

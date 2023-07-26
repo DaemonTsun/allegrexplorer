@@ -4,6 +4,7 @@
 #include "shl/string.hpp"
 
 #include "allegrexplorer_context.hpp"
+#include "colors.hpp"
 #include "ui.hpp"
 
 void init(ui_elf_section *sec)
@@ -393,5 +394,9 @@ void ui_address_button(u32 target_address, const char *fmt, ...)
         ui_set_jump_target_address(target_address);
 
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    {
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, (u32)colors::section_tooltip_color);
         ImGui::SetTooltip("%08x", target_address);
+        ImGui::PopStyleColor();
+    }
 }
