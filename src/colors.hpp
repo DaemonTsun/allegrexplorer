@@ -7,8 +7,9 @@
 
 namespace colors
 {
-extern ImColor section_color;
+extern ImColor section_bg_color;
 extern ImColor section_text_color;
 extern ImColor section_tooltip_color;
-extern ImColor function_color;
+extern ImColor function_bg_color;
+extern ImColor function_highlighted_bg_color;
 }

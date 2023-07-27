@@ -103,11 +103,16 @@ float recompute_total_disassembly_height(ui_context *ctx)
     float font_size = ImGui::GetFontSize();
 
     float total_height = 0;
+    total_height += y_padding;
 
     for_array(_i, _uisec, &ctx->sections)
     {
         _uisec->computed_y_offset = total_height + _i * item_spacing;
+
         total_height += _recompute_section_height(_uisec, y_padding, font_size, item_spacing);
+
+        for_array(_func, &_uisec->functions)
+            _func->computed_y_offset += _uisec->computed_y_offset;
     }
 
     if (ctx->sections.size > 0)
@@ -134,7 +139,10 @@ float get_y_offset_of_address(u32 vaddr)
         if (vaddr < sec_vaddr)
             break;
 
-        u64 sec_max_vaddr = sec_vaddr + (uisec->instruction_data->instructions.size * sizeof(u32));
+        u64 sec_max_vaddr = sec_vaddr;
+
+        if (uisec->instruction_data->instructions.size > 0)
+            sec_max_vaddr += (uisec->instruction_data->instructions.size - 1) * sizeof(u32);
         
         if (vaddr > sec_max_vaddr)
             continue;
@@ -145,7 +153,10 @@ float get_y_offset_of_address(u32 vaddr)
             if (vaddr < func->vaddr)
                 break;
 
-            u64 func_max_vaddr = func->vaddr + (func->instruction_count * sizeof(u32));
+            u64 func_max_vaddr = func->vaddr;
+
+            if (func->instruction_count > 0)
+                func_max_vaddr += (func->instruction_count - 1) * sizeof(u32);
 
             if (vaddr > func_max_vaddr)
                 continue;
@@ -153,6 +164,7 @@ float get_y_offset_of_address(u32 vaddr)
             u32 nth_instr = (vaddr - func->vaddr) / sizeof(u32);
 
             ret = func->computed_y_offset + y_padding + nth_instr * (font_size + item_spacing);
+            break;
         }
 
         break;
@@ -344,6 +356,7 @@ void ui_set_jump_target_address(u32 address)
 {
     ctx.ui.do_jump = true;
     ctx.ui.jump_address = address;
+    ctx.ui.jump_y_offset = get_y_offset_of_address(ctx.ui.jump_address);
 }
 
 void ui_do_jump_to_target_address()
@@ -356,7 +369,7 @@ void ui_do_jump_to_target_address()
 
     ctx.ui.do_jump = false;
     
-    float offset = get_y_offset_of_address(ctx.ui.jump_address);
+    float offset = ctx.ui.jump_y_offset;
 
     if (offset < 0.f)
         return;

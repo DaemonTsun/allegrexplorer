@@ -18,7 +18,11 @@
 #include "colors.hpp"
 #include "ui.hpp"
 
+#ifndef NDEBUG
+bool show_debug_info = true;
+#else
 bool show_debug_info = false;
+#endif
 
 void imgui_menu_bar(mg::window *window)
 {
@@ -168,7 +172,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         elf_section *sec = uisec->section;
         u32 pos = sec->content_offset;
 
-        begin_group(colors::section_color);
+        begin_group(colors::section_bg_color);
 
         ImGui::Text("Section %s", sec->name);
 
@@ -193,7 +197,12 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
             current_sec_height += func_height;
             current_sec_height += item_spacing;
 
-            begin_group(colors::function_color);
+            auto func_col = colors::function_bg_color;
+
+            if (ctx.ui.jump_address == func->vaddr)
+                func_col = colors::function_highlighted_bg_color;
+
+            begin_group(func_col);
 
             for (u64 i = 0; i < func->instruction_count; ++i)
             {
@@ -201,7 +210,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
                 if (show_debug_info)
                 {
-                    ImGui::Text("%.1f", ImGui::GetCursorPosY());
+                    ImGui::Text("%.0f", ImGui::GetCursorPosY());
                     ImGui::SameLine();
                 }
 
@@ -304,6 +313,8 @@ void debug_info_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::Begin("Debug Info");
 
     ImGui::Text("View range: %.0f - %.0f", ctx.debug.view_min_y, ctx.debug.view_max_y);
+    ImGui::Text("Jump addr: %08x", ctx.ui.jump_address);
+    ImGui::Text("Jump y: %.0f", ctx.ui.jump_y_offset);
 
     ImGui::End();
 }
@@ -396,17 +407,21 @@ void prepare_disasm_ui_data()
 
             if (new_func)
             {
-                f->instruction_count = current_instruction_count;
-
-                if (f->instruction_count != 0)
+                // let's not split at branches
+                if (jumps->data[jmp_i].type == jump_type::Jump)
                 {
-                    current_instruction_count = 0;
-                    f = add_at_end(&uisec->functions);
-                    f->instruction_count = 0;
-                }
+                    f->instruction_count = current_instruction_count;
 
-                f->instructions = instr;
-                f->vaddr = instr->address;
+                    if (f->instruction_count != 0)
+                    {
+                        current_instruction_count = 0;
+                        f = add_at_end(&uisec->functions);
+                        f->instruction_count = 0;
+                    }
+
+                    f->instructions = instr;
+                    f->vaddr = instr->address;
+                }
                 jmp_i++;
             }
 

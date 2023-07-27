@@ -59,6 +59,7 @@ struct ui_context
     } fonts;
 
     u32 jump_address;
+    float jump_y_offset;
     bool do_jump;
 };
 
