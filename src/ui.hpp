@@ -20,6 +20,7 @@ struct ui_allegrex_function
 {
     elf_section *section;
     u32 vaddr;
+    u32 max_vaddr; // vaddr + (instruction_count - 1) * sizeof(u32)
     instruction *instructions;
     u64 instruction_count;
 
@@ -34,6 +35,8 @@ struct ui_elf_section
     elf_section *section;
 
     instruction_parse_data* instruction_data;
+
+    u32 max_vaddr; // section->vaddr + (instruction_data.size - 1) * sizeof(u32)
 
     array<ui_allegrex_function> functions;
 
@@ -72,6 +75,8 @@ float recompute_section_height(ui_elf_section *sec);
 float recompute_total_disassembly_height(ui_context *ctx);
 
 float get_y_offset_of_address(u32 vaddr);
+ui_elf_section *get_section_containing_vaddr(u32 vaddr);
+ui_allegrex_function *get_function_containing_vaddr(u32 vaddr);
 
 void ui_instruction_name_text(const instruction *inst);
 void ui_instruction_arguments(instruction *inst);

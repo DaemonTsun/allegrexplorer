@@ -58,7 +58,7 @@ const char *address_label(u32 addr)
 
     constexpr const compare_function_p<u32, jump_destination> comp = compare_only_address_ascending_p;
 
-    nearest_search_result res = nearest_index_of(&ctx.disasm.jumps, addr, comp);
+    binary_search_result res = nearest_index_of(&ctx.disasm.jumps, addr, comp);
 
     if (res.last_comparison != 0)
         return "";

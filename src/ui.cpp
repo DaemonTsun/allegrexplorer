@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include "shl/format.hpp"
 #include "shl/string.hpp"
+#include "shl/sort.hpp"
 
 #include "allegrexplorer_context.hpp"
 #include "colors.hpp"
@@ -173,6 +174,49 @@ float get_y_offset_of_address(u32 vaddr)
     return ret;
 }
 
+int compare_section_address(u32 *vaddr, ui_elf_section *sec)
+{
+    return compare_clamp_ascending(*vaddr, sec->section->vaddr, sec->max_vaddr);
+}
+
+int compare_function_address(u32 *vaddr, ui_allegrex_function *func)
+{
+    return compare_clamp_ascending(*vaddr, func->vaddr, func->max_vaddr);
+}
+
+ui_elf_section *get_section_containing_vaddr(u32 vaddr)
+{
+    auto *arr = &ctx.ui.sections;
+
+    binary_search_result res = binary_search(arr->data,
+                                             arr->size,
+                                             &vaddr,
+                                             compare_function_p<u32, ui_elf_section>(compare_section_address));
+
+    if (res.last_comparison == 0)
+        return arr->data + res.index;
+
+    return nullptr;
+}
+
+ui_allegrex_function *get_function_containing_vaddr(u32 vaddr)
+{
+    auto *sec = get_section_containing_vaddr(vaddr);
+
+    if (sec == nullptr)
+        return nullptr;
+
+    binary_search_result res = binary_search(sec->functions.data,
+                                             sec->functions.size,
+                                             &vaddr,
+                                             compare_function_p<u32, ui_allegrex_function>(compare_function_address));
+
+    if (res.last_comparison == 0)
+        return sec->functions.data + res.index;
+
+    return nullptr;
+}
+
 void ui_instruction_name_text(const instruction *inst)
 {
     const char *name = get_mnemonic_name(inst->mnemonic);
@@ -196,6 +240,7 @@ void ui_instruction_arguments(instruction *inst)
     for (u32 i = 0; i < inst->argument_count; ++i)
     {
         ImGui::SameLine();
+        ImGui::PushID((inst->address << 2) + i);
 
         instruction_argument *arg = inst->arguments + i;
         argument_type arg_type = inst->argument_types[i];
@@ -349,6 +394,8 @@ case argument_type::ArgumentType: \
         default:
             break;
         }
+
+        ImGui::PopID();
     }
 }
 

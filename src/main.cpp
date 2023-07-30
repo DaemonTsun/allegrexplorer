@@ -125,6 +125,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         recompute_total_disassembly_height(&ctx.ui);
 
     float total_height = ctx.ui.computed_height;
+    ui_allegrex_function *highlighted_function = get_function_containing_vaddr(ctx.ui.jump_address);
 
     ui_do_jump_to_target_address();
 
@@ -199,7 +200,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
 
             auto func_col = colors::function_bg_color;
 
-            if (ctx.ui.jump_address == func->vaddr)
+            if (func == highlighted_function)
                 func_col = colors::function_highlighted_bg_color;
 
             begin_group(func_col);
@@ -382,11 +383,12 @@ void prepare_disasm_ui_data()
         uisec->section = sec;
         uisec->instruction_data = nullptr;
         
-        if (i < ctx.disasm.instruction_datas.size)
-        {
-            uisec->instruction_data = ctx.disasm.instruction_datas.data + i;
-            assert(uisec->instruction_data->section_index == i);
-        }
+        uisec->instruction_data = ctx.disasm.instruction_datas.data + i;
+        assert(uisec->instruction_data->section_index == i);
+        uisec->max_vaddr = sec->vaddr;
+
+        if (uisec->instruction_data->instructions.size > 0)
+            uisec->max_vaddr += (uisec->instruction_data->instructions.size - 1) * sizeof(u32);
 
         ui_allegrex_function *f = add_at_end(&uisec->functions);
         f->instructions = uisec->instruction_data->instructions.data;
@@ -411,9 +413,11 @@ void prepare_disasm_ui_data()
                 if (jumps->data[jmp_i].type == jump_type::Jump)
                 {
                     f->instruction_count = current_instruction_count;
+                    f->max_vaddr = f->vaddr;
 
                     if (f->instruction_count != 0)
                     {
+                        f->max_vaddr += (current_instruction_count - 1) * sizeof(u32);
                         current_instruction_count = 0;
                         f = add_at_end(&uisec->functions);
                         f->instruction_count = 0;
@@ -422,6 +426,7 @@ void prepare_disasm_ui_data()
                     f->instructions = instr;
                     f->vaddr = instr->address;
                 }
+
                 jmp_i++;
             }
 
