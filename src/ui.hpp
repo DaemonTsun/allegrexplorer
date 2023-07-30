@@ -15,6 +15,7 @@
 
 const float ui_style_disassembly_y_padding = 2;
 const float ui_style_disassembly_item_spacing = 6;
+const u32 ui_max_jump_history_entries = 128;
 
 struct ui_allegrex_function
 {
@@ -47,6 +48,16 @@ struct ui_elf_section
 void init(ui_elf_section *sec);
 void free(ui_elf_section *sec);
 
+struct ui_jump_history_entry
+{
+    u32 target_address;
+    ui_allegrex_function *target_function;
+    string function_name;
+};
+
+void init(ui_jump_history_entry *entry);
+void free(ui_jump_history_entry *entry);
+
 struct ui_context
 {
     array<ui_elf_section> sections;
@@ -61,9 +72,15 @@ struct ui_context
         ImFont *mono_italic;
     } fonts;
 
-    u32 jump_address;
-    float jump_y_offset;
-    bool do_jump;
+    struct _jump
+    {
+        u32 target_address;
+        ui_allegrex_function *target_function;
+        float y_offset;
+        bool do_jump;
+
+        array<ui_jump_history_entry> history;
+    } jump;
 };
 
 void init(ui_context *ctx);

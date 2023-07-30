@@ -53,7 +53,7 @@ const char *address_label(u32 addr)
 {
     const char *aname = address_name(addr);
 
-    if (aname != "")
+    if (compare_strings(aname, "") != 0)
         return aname;
 
     constexpr const compare_function_p<u32, jump_destination> comp = compare_only_address_ascending_p;

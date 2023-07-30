@@ -21,15 +21,28 @@ void free(ui_elf_section *sec)
     free(&sec->functions);
 }
 
+void init(ui_jump_history_entry *entry)
+{
+    init(&entry->function_name);
+}
+
+void free(ui_jump_history_entry *entry)
+{
+    free(&entry->function_name);
+}
+
 void init(ui_context *ctx)
 {
     ctx->computed_height = -1.f;
     init(&ctx->sections);
     init(&ctx->section_search_results);
+    init(&ctx->jump.history);
+    reserve(&ctx->jump.history, ui_max_jump_history_entries+1);
 }
 
 void free(ui_context *ctx)
 {
+    free<true>(&ctx->jump.history);
     free(&ctx->section_search_results);
     free<true>(&ctx->sections);
 }
@@ -131,47 +144,13 @@ float get_y_offset_of_address(u32 vaddr)
     float item_spacing = ui_style_disassembly_item_spacing;
     float font_size = ImGui::GetFontSize();
 
-    float ret = -1.f;
+    ui_allegrex_function *func = get_function_containing_vaddr(vaddr);
 
-    for_array(uisec, &ctx.ui.sections)
-    {
-        u32 sec_vaddr = uisec->section->vaddr; 
+    if (func == nullptr)
+        return -1.f;
 
-        if (vaddr < sec_vaddr)
-            break;
-
-        u64 sec_max_vaddr = sec_vaddr;
-
-        if (uisec->instruction_data->instructions.size > 0)
-            sec_max_vaddr += (uisec->instruction_data->instructions.size - 1) * sizeof(u32);
-        
-        if (vaddr > sec_max_vaddr)
-            continue;
-
-        // got the section the vaddr is probably in, find function
-        for_array(func, &uisec->functions)
-        {
-            if (vaddr < func->vaddr)
-                break;
-
-            u64 func_max_vaddr = func->vaddr;
-
-            if (func->instruction_count > 0)
-                func_max_vaddr += (func->instruction_count - 1) * sizeof(u32);
-
-            if (vaddr > func_max_vaddr)
-                continue;
-
-            u32 nth_instr = (vaddr - func->vaddr) / sizeof(u32);
-
-            ret = func->computed_y_offset + y_padding + nth_instr * (font_size + item_spacing);
-            break;
-        }
-
-        break;
-    }
-    
-    return ret;
+    u32 nth_instr = (vaddr - func->vaddr) / sizeof(u32);
+    return func->computed_y_offset + y_padding + nth_instr * (font_size + item_spacing);
 }
 
 int compare_section_address(u32 *vaddr, ui_elf_section *sec)
@@ -401,27 +380,42 @@ case argument_type::ArgumentType: \
 
 void ui_set_jump_target_address(u32 address)
 {
-    ctx.ui.do_jump = true;
-    ctx.ui.jump_address = address;
-    ctx.ui.jump_y_offset = get_y_offset_of_address(ctx.ui.jump_address);
+    ctx.ui.jump.do_jump = true;
+    ctx.ui.jump.target_address = address;
+    ctx.ui.jump.target_function = get_function_containing_vaddr(address);
+    ctx.ui.jump.y_offset = get_y_offset_of_address(address);
+
+    // add to history
+    array<ui_jump_history_entry> *history = &ctx.ui.jump.history;
+
+    ui_jump_history_entry *entry = ::add_at_end(history);
+    entry->target_address = ctx.ui.jump.target_address;
+    entry->target_function = ctx.ui.jump.target_function;
+    entry->function_name = copy_string(address_label(ctx.ui.jump.target_address));
+
+    if (history->size > ui_max_jump_history_entries)
+    {
+        free(history->data + 0);
+
+        move_memory(history->data + 1,
+                    history->data,
+                    ui_max_jump_history_entries * sizeof(ui_jump_history_entry));
+
+        history->size -= 1;
+    }
 }
 
 void ui_do_jump_to_target_address()
 {
-    if (!ctx.ui.do_jump)
+    if (!ctx.ui.jump.do_jump)
         return;
 
     auto wsize = ImGui::GetWindowSize();
     float total_height = ctx.ui.computed_height;
 
-    ctx.ui.do_jump = false;
+    ctx.ui.jump.do_jump = false;
     
-    float offset = ctx.ui.jump_y_offset;
-
-    if (offset < 0.f)
-        return;
-
-    // offset -= wsize.y / 2;
+    float offset = ctx.ui.jump.y_offset;
 
     if (offset < 0.f)
         offset = 0;

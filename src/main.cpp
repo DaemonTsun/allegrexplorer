@@ -7,6 +7,7 @@
 #include "shl/format.hpp"
 #include "shl/string.hpp"
 #include "shl/array.hpp"
+#include "shl/murmur_hash.hpp"
 
 #include "mg/mg.hpp"
 #include "mg/impl/context.hpp"
@@ -125,7 +126,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
         recompute_total_disassembly_height(&ctx.ui);
 
     float total_height = ctx.ui.computed_height;
-    ui_allegrex_function *highlighted_function = get_function_containing_vaddr(ctx.ui.jump_address);
+    ui_allegrex_function *highlighted_function = ctx.ui.jump.target_function;
 
     ui_do_jump_to_target_address();
 
@@ -215,12 +216,12 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
                     ImGui::SameLine();
                 }
 
-                if (ctx.ui.jump_address == inst->address)
+                if (ctx.ui.jump.target_address == inst->address)
                     ImGui::PushFont(ctx.ui.fonts.mono_bold);
 
                 ImGui::Text(ctx.address_name_format, address_label(inst->address));
 
-                if (ctx.ui.jump_address == inst->address)
+                if (ctx.ui.jump.target_address == inst->address)
                     ImGui::PopFont();
 
                 ImGui::SameLine();
@@ -308,14 +309,40 @@ void sections_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
+void jump_history_panel(mg::window *window, ImGuiID dockspace_id)
+{
+    ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+    ImGui::Begin("Jump history");
+
+    ImGui::PushFont(ctx.ui.fonts.mono);
+    ImGui::PushItemWidth(-1);
+
+    if (ImGui::BeginListBox("##", ImVec2{-1, -1}))
+    {
+        for_array(_i, _, &ctx.ui.jump.history)
+        {
+            ImGui::PushID(__LINE_HASH__ + _i);
+            auto *entry = ctx.ui.jump.history.data + ((ctx.ui.jump.history.size - 1) - _i);
+            ui_address_button(entry->target_address, "%08x: %s", entry->target_address, (const char*)entry->function_name);
+            ImGui::PopID();
+        }
+
+        ImGui::EndListBox();
+    }
+
+    ImGui::PopFont();
+
+    ImGui::End();
+}
+
 void debug_info_panel(mg::window *window, ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Debug Info");
 
     ImGui::Text("View range: %.0f - %.0f", ctx.debug.view_min_y, ctx.debug.view_max_y);
-    ImGui::Text("Jump addr: %08x", ctx.ui.jump_address);
-    ImGui::Text("Jump y: %.0f", ctx.ui.jump_y_offset);
+    ImGui::Text("Jump addr: %08x", ctx.ui.jump.target_address);
+    ImGui::Text("Jump y: %.0f", ctx.ui.jump.y_offset);
 
     ImGui::End();
 }
@@ -344,6 +371,7 @@ void update(mg::window *window, double dt)
     imgui_side_panel(window, dockspace_id);
     main_panel(window, dockspace_id);
     sections_panel(window, dockspace_id);
+    jump_history_panel(window, dockspace_id);
 
     if (show_debug_info)
         debug_info_panel(window, dockspace_id);
