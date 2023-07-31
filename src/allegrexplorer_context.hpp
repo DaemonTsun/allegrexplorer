@@ -13,11 +13,13 @@ struct allegrexplorer_context
     char file_offset_format[32];
     char address_name_format[32];
 
+#ifndef NDEBUG
     struct _debug
     {
         float view_min_y;
         float view_max_y;
     } debug;
+#endif
 };
 
 void init(allegrexplorer_context *ctx);

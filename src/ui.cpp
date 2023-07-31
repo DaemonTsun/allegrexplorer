@@ -38,6 +38,7 @@ void init(ui_context *ctx)
     init(&ctx->section_search_results);
     init(&ctx->jump.history);
     reserve(&ctx->jump.history, ui_max_jump_history_entries+1);
+    fill_memory(&ctx->popups, 0);
 }
 
 void free(ui_context *ctx)
@@ -387,6 +388,9 @@ void ui_set_jump_target_address(u32 address)
 
     // add to history
     array<ui_jump_history_entry> *history = &ctx.ui.jump.history;
+
+    if (history->size > 0 && history->data[history->size - 1].target_address == address)
+        return; // or not
 
     ui_jump_history_entry *entry = ::add_at_end(history);
     entry->target_address = ctx.ui.jump.target_address;

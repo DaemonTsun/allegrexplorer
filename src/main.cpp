@@ -50,6 +50,9 @@ void imgui_menu_bar(mg::window *window)
         {
             ImGui::MenuItem("Toggle debug info", nullptr, &show_debug_info);
 
+            if (ImGui::MenuItem("Goto Address / Symbol", "Ctrl+G"))
+                ctx.ui.popups.show_goto_popup = true;
+
             ImGui::EndMenu();
         }
 
@@ -347,6 +350,23 @@ void debug_info_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
+void show_popups(mg::window *window, ImGuiID dockspace_id)
+{
+#define POPUP_GOTO "POPUP_GOTO"
+
+    if (ctx.ui.popups.show_goto_popup)
+    {
+        ctx.ui.popups.show_goto_popup = false;
+        ImGui::OpenPopup(POPUP_GOTO);
+    }
+
+    if (ImGui::BeginPopup(POPUP_GOTO))
+    {
+        // TODO: implement
+        ImGui::SeparatorText("TODO");
+        ImGui::EndPopup();
+    }
+}
 
 void update(mg::window *window, double dt)
 {
@@ -375,6 +395,8 @@ void update(mg::window *window, double dt)
 
     if (show_debug_info)
         debug_info_panel(window, dockspace_id);
+
+    show_popups(window, dockspace_id);
 
     ImGui::End();
 
@@ -529,6 +551,19 @@ void load_fonts(mg::window *window)
     ui::upload_fonts(window);
 }
 
+void key_callback(mg::window *window, int key, int scancode, int action, int mods)
+{
+    bool ctrl = (mods & 2) == 2;
+    bool pressed = action == 1;
+
+    if (pressed && ctrl && key == 'G')
+    {
+        ctx.ui.popups.show_goto_popup = true;
+    }
+    else if (pressed && ctrl && key == 'W')
+        mg::close_window(window);
+}
+
 int main(int argc, const char *argv[])
 {
     init(&ctx.disasm);
@@ -536,6 +571,7 @@ int main(int argc, const char *argv[])
     mg::window window;
     // TODO: remember window size
     mg::create_window(&window, allegrexplorer_NAME, 1600, 900);
+    mg::set_keyboard_callback(&window, key_callback);
 
     load_fonts(&window);
 

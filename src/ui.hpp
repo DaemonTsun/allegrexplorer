@@ -81,6 +81,11 @@ struct ui_context
 
         array<ui_jump_history_entry> history;
     } jump;
+
+    struct _popups
+    {
+        bool show_goto_popup;
+    } popups;
 };
 
 void init(ui_context *ctx);
