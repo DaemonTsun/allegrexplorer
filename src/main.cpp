@@ -6,6 +6,7 @@
 
 #include "shl/format.hpp"
 #include "shl/string.hpp"
+#include "shl/parse.hpp"
 #include "shl/array.hpp"
 #include "shl/murmur_hash.hpp"
 
@@ -350,20 +351,59 @@ void debug_info_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
+bool goto_popup_jump_to_address(const_string input)
+{
+    u32 out;
+
+    if (parse_integer(input, &out))
+    {
+        ui_set_jump_target_address(out);
+        return true;
+    }
+    else
+    {
+        // TODO: implement symbol goto
+    }
+
+    return false;
+}
+
 void show_popups(mg::window *window, ImGuiID dockspace_id)
 {
-#define POPUP_GOTO "POPUP_GOTO"
+#define POPUP_GOTO "Goto address or symbol##POPUP_GOTO"
+    static bool _first_opened = false;
 
     if (ctx.ui.popups.show_goto_popup)
     {
         ctx.ui.popups.show_goto_popup = false;
         ImGui::OpenPopup(POPUP_GOTO);
+        _first_opened = true;
     }
 
-    if (ImGui::BeginPopup(POPUP_GOTO))
+    ImGui::SetNextWindowSize({400, 200});
+    if (ImGui::BeginPopupModal(POPUP_GOTO))
     {
-        // TODO: implement
-        ImGui::SeparatorText("TODO");
+        if (_first_opened)
+        {
+            ImGui::SetKeyboardFocusHere();
+            _first_opened = false;
+        }
+
+        static char target[128];
+        if (ImGui::InputText("Target", target, 128, ImGuiInputTextFlags_EnterReturnsTrue))
+        {
+            if (goto_popup_jump_to_address(to_const_string(target)))
+                ImGui::CloseCurrentPopup();
+        }
+
+        if (ImGui::Button("Go"))
+            ImGui::CloseCurrentPopup();
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Cancel"))
+            ImGui::CloseCurrentPopup();
+
         ImGui::EndPopup();
     }
 }
@@ -562,6 +602,8 @@ void key_callback(mg::window *window, int key, int scancode, int action, int mod
     }
     else if (pressed && ctrl && key == 'W')
         mg::close_window(window);
+
+    // TODO: forward & backward
 }
 
 int main(int argc, const char *argv[])
