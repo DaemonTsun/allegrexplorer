@@ -38,7 +38,6 @@ void init(ui_context *ctx)
     init(&ctx->section_search_results);
     init(&ctx->jump.history);
     reserve(&ctx->jump.history, ui_max_jump_history_entries+1);
-    fill_memory(&ctx->popups, 0);
 }
 
 void free(ui_context *ctx)
