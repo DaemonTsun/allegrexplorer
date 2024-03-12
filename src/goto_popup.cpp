@@ -1,6 +1,7 @@
 
 #include "shl/string.hpp"
 #include "shl/parse.hpp"
+#include "shl/format.hpp"
 #include "shl/murmur_hash.hpp"
 
 #include "allegrexplorer_context.hpp"
@@ -92,14 +93,15 @@ void goto_popup()
                 close_goto_popup();
         }
 
+        const_string fmt{};
+
         for_array(i, result, &_search_results)
         {
-            char _formatted_text_buffer[256];
-            sprintf(_formatted_text_buffer, "%08x - %s", result->address, result->name.c_str);
+            fmt = tformat("%08x - %s", result->address, result->name.c_str);
 
             ImGui::PushID(__LINE_HASH__ + i);
             
-            if (ImGui::Button(_formatted_text_buffer))
+            if (ImGui::Button(fmt.c_str))
             {
                 ui_set_jump_target_address(result->address);
                 close_goto_popup();

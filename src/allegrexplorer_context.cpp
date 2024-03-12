@@ -65,12 +65,12 @@ const char *address_label(u32 addr)
 
     jump_destination *dest = at(&ctx.disasm.jumps, res.index);
 
-    static char _buf[14];
+    const_string ret{};
 
     if (dest->type == jump_type::Jump)
-        snprintf(_buf, 14, "func_%08x", addr);
+        ret = tformat("func_%08x", addr);
     else
-        snprintf(_buf, 14, ".L%08x", addr);
+        ret = tformat(".L%08x", addr);
 
-    return _buf;
+    return ret.c_str;
 }

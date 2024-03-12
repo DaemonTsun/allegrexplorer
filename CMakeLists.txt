@@ -6,18 +6,32 @@ find_package(better REQUIRED NO_DEFAULT_PATH PATHS ./ext/better-cmake/cmake/)
 
 project(allegrexplorer)
 
+include("cmake/GLFW.cmake")
+include("cmake/imgui.cmake")
+
+find_package(OpenGL)
+
 add_exe(allegrexplorer
     VERSION 0.0.1
     SOURCES_DIR "${ROOT}/src"
     GENERATE_TARGET_HEADER "${ROOT}/src/allegrexplorer_info.hpp"
-    CPP_VERSION 17
+    CPP_VERSION 20
     CPP_WARNINGS ALL SANE FATAL
-    INCLUDE_DIRS "${ROOT}/ext/mg/ext/imgui/"
+    LIBRARIES ${GLFW_LIBRARIES}
+              ${imgui_LIBRARIES}
+              ${OPENGL_LIBRARIES}
+              @Windows shell32 user32 gdi32
+    INCLUDE_DIRS ${GLFW_INCLUDE_DIRS}
+                 ${imgui_INCLUDE_DIRS}
+
     EXT
-        LIB shl 0.7.1 "${ROOT}/ext/shl" INCLUDE LINK
-        LIB mg  0.8.0 "${ROOT}/ext/mg"  INCLUDE LINK
-        LIB allegrex 1.0.2 "${ROOT}/ext/liballegrex" INCLUDE LINK
+        LIB shl      0.9.1 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB allegrex 1.0.3 "${ROOT}/ext/liballegrex" INCLUDE LINK GIT_SUBMODULE
+
+    SUBMODULES
+        MODULE glfw "${ROOT}/ext/glfw"
+        MODULE imgui "${ROOT}/ext/imgui"
     )
 
 # run
-add_custom_target("run_${allegrexplorer_TARGET}" COMMAND "${ROOT_BIN}/${allegrexplorer_TARGET}")
+add_custom_target("run" COMMAND "${ROOT_BIN}/${allegrexplorer_TARGET}")

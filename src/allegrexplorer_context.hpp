@@ -4,10 +4,13 @@
 #include "allegrex/disassemble.hpp"
 #include "ui.hpp"
 
+struct GLFWwindow;
+
 struct allegrexplorer_context
 {
     psp_disassembly disasm;
 
+    GLFWwindow *window;
     ui_context ui;
 
     char file_offset_format[32];

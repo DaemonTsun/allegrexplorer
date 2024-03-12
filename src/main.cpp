@@ -9,12 +9,11 @@
 #include "shl/array.hpp"
 #include "shl/murmur_hash.hpp"
 
-#include "mg/mg.hpp"
-#include "mg/impl/context.hpp"
 #include "allegrex/disassemble.hpp"
 
 #include "allegrexplorer_info.hpp"
 #include "allegrexplorer_context.hpp"
+#include "window_imgui_util.hpp"
 #include "imgui_util.hpp"
 #include "colors.hpp"
 #include "goto_popup.hpp"
@@ -26,7 +25,7 @@ bool show_debug_info = true;
 bool show_debug_info = false;
 #endif
 
-void imgui_menu_bar(mg::window *window)
+void imgui_menu_bar()
 {
     if (ImGui::BeginMenuBar())
     {
@@ -42,7 +41,7 @@ void imgui_menu_bar(mg::window *window)
             */
 
             if (ImGui::MenuItem("Close", "Ctrl+W"))
-                mg::close_window(window);
+                close_window(ctx.window);
 
             ImGui::EndMenu();
         }
@@ -61,7 +60,7 @@ void imgui_menu_bar(mg::window *window)
     }
 }
 
-void imgui_side_panel(mg::window *window, ImGuiID dockspace_id)
+void imgui_side_panel(ImGuiID dockspace_id)
 {
     elf_psp_module *mod = &ctx.disasm.psp_module;
     prx_sce_module_info *mod_info = &mod->module_info;
@@ -111,7 +110,7 @@ void imgui_side_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
-void main_panel(mg::window *window, ImGuiID dockspace_id)
+void main_panel(ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Disassembly");
@@ -255,7 +254,7 @@ void main_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
-void sections_panel(mg::window *window, ImGuiID dockspace_id)
+void sections_panel(ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Sections");
@@ -313,7 +312,7 @@ void sections_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
-void jump_history_panel(mg::window *window, ImGuiID dockspace_id)
+void jump_history_panel(ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Jump history");
@@ -339,7 +338,7 @@ void jump_history_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
-void debug_info_panel(mg::window *window, ImGuiID dockspace_id)
+void debug_info_panel(ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     ImGui::Begin("Debug Info");
@@ -351,44 +350,44 @@ void debug_info_panel(mg::window *window, ImGuiID dockspace_id)
     ImGui::End();
 }
 
-void show_popups(mg::window *window, ImGuiID dockspace_id)
+void show_popups(ImGuiID dockspace_id)
 {
     goto_popup();
 }
 
-void update(mg::window *window, double dt)
+static void _update(GLFWwindow *_, double dt)
 {
-    ui::new_frame(window);
+    ui_new_frame();
 
     int windowflags = ImGuiWindowFlags_NoMove
                     | ImGuiWindowFlags_NoDecoration
                     | ImGuiWindowFlags_MenuBar
                     | ImGuiWindowFlags_NoBackground;
 
-    ui::set_next_window_full_size();
+    ui_set_next_window_full_size();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin(allegrexplorer_NAME, nullptr, windowflags);
     ImGui::PopStyleVar();
 
-    imgui_menu_bar(window);
+    imgui_menu_bar();
 
     ImGuiID dockspace_id = ImGui::GetID("main_dock");
     ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 
-    imgui_side_panel(window, dockspace_id);
-    main_panel(window, dockspace_id);
-    sections_panel(window, dockspace_id);
-    jump_history_panel(window, dockspace_id);
+    imgui_side_panel(dockspace_id);
+    main_panel(dockspace_id);
+    sections_panel(dockspace_id);
+    jump_history_panel(dockspace_id);
 
     if (show_debug_info)
-        debug_info_panel(window, dockspace_id);
+        debug_info_panel(dockspace_id);
 
-    show_popups(window, dockspace_id);
+    show_popups(dockspace_id);
 
     ImGui::End();
 
-    ui::end_frame();
+    ui_end_frame();
 }
 
 template<typename T>
@@ -405,7 +404,7 @@ constexpr inline T hex_digits(T x)
     return i;
 }
 
-void prepare_disasm_ui_data()
+static void _prepare_disasm_ui_data()
 {
     reserve(&ctx.ui.sections, ctx.disasm.psp_module.sections.size);
 
@@ -487,7 +486,7 @@ void prepare_disasm_ui_data()
         u32 max_instruction_offset = last_section->content_offset + last_section->content_size;
         u32 pos_digits = hex_digits(max_instruction_offset);
 
-        sprintf(ctx.file_offset_format, "%%0%ux", pos_digits);
+        format(ctx.file_offset_format, 32, "\\%0%ux", pos_digits);
     }
 
     // name padding
@@ -510,23 +509,27 @@ void prepare_disasm_ui_data()
     if (max_name_len > 256)
         max_name_len = 256;
 
-    sprintf(ctx.address_name_format, "%%-%us", max_name_len);
+    format(ctx.address_name_format, 32, "\\%-%us", max_name_len);
 }
 
-void load_psp_elf(const char *path)
+static bool _load_psp_elf(const char *path, error *err)
 {
     free(&ctx);
     init(&ctx);
 
-    disassemble_psp_elf(path, &ctx.disasm);
+    if (!disassemble_psp_elf(path, &ctx.disasm, err))
+        return false;
 
-    prepare_disasm_ui_data();
+    _prepare_disasm_ui_data();
+
+    return true;
 }
 
-void load_fonts(mg::window *window)
+static void _load_fonts()
 {
     ImGuiIO *io = &ImGui::GetIO();
-    float scale = mg::get_window_scaling(window);
+
+    float scale = get_window_scaling(ctx.window);
     int font_size = 20 * scale;
 
     ImFontConfig font_conf = ImFontConfig();
@@ -536,10 +539,9 @@ void load_fonts(mg::window *window)
     ctx.ui.fonts.mono = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_regular, size_iosevka_fixed_ss02_regular, font_size, &font_conf);
     ctx.ui.fonts.mono_bold = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_bold, size_iosevka_fixed_ss02_bold, font_size, &font_conf);
     ctx.ui.fonts.mono_italic = io->Fonts->AddFontFromMemoryTTF(iosevka_fixed_ss02_italic, size_iosevka_fixed_ss02_italic, font_size, &font_conf);
-    ui::upload_fonts(window);
 }
 
-void key_callback(mg::window *window, int key, int scancode, int action, int mods)
+static void _key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
     bool ctrl = (mods & 2) == 2;
     bool pressed = action == 1;
@@ -549,31 +551,34 @@ void key_callback(mg::window *window, int key, int scancode, int action, int mod
         open_goto_popup();
     }
     else if (pressed && ctrl && key == 'W')
-        mg::close_window(window);
+        close_window(window);
 
     // TODO: forward & backward
 }
 
 int main(int argc, const char *argv[])
 {
+    error err{};
+
     init(&ctx.disasm);
 
-    mg::window window;
+    window_init();
+
     // TODO: remember window size
-    mg::create_window(&window, allegrexplorer_NAME, 1600, 900);
-    mg::set_keyboard_callback(&window, key_callback);
+    ctx.window = create_window(allegrexplorer_NAME, 1600, 900);
+    set_window_keyboard_callback(ctx.window, _key_callback);
+    ui_init(ctx.window);
 
-    load_fonts(&window);
-
-    ImGuiIO *io = &ImGui::GetIO();
-    io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    _load_fonts();
 
     if (argc > 1)
-        load_psp_elf(argv[1]);
+        _load_psp_elf(argv[1], &err);
 
-    mg::event_loop(&window, ::update);
+    window_event_loop(ctx.window, _update);
 
-    mg::destroy_window(&window);
+    ui_exit(ctx.window);
+    destroy_window(ctx.window);
+    window_exit();
 
     free(&ctx.disasm);
 

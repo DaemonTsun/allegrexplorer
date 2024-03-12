@@ -4,9 +4,12 @@
 [submodule "ext/shl"]
 	path = ext/shl
 	url = https://github.com/daemontsun/shl
-[submodule "ext/mg"]
-	path = ext/mg
-	url = https://github.com/daemontsun/mg
 [submodule "ext/liballegrex"]
 	path = ext/liballegrex
 	url = https://github.com/daemontsun/liballegrex
+[submodule "ext/imgui"]
+	path = ext/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "ext/glfw"]
+	path = ext/glfw
+	url = https://github.com/glfw/glfw

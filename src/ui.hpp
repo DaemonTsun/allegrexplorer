@@ -101,3 +101,4 @@ void ui_set_jump_target_address(u32 address);
 void ui_do_jump_to_target_address();
 
 void ui_address_button(u32 target_address, const char *fmt, ...);
+

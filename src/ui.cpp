@@ -1,5 +1,6 @@
 
 #include <stdarg.h>
+#include <stdio.h>
 #include "shl/format.hpp"
 #include "shl/string.hpp"
 #include "shl/sort.hpp"
@@ -457,3 +458,4 @@ void ui_address_button(u32 target_address, const char *fmt, ...)
         ImGui::PopStyleColor();
     }
 }
+
