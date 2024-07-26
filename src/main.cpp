@@ -1,18 +1,18 @@
 
-#include <assert.h>
 #include "backends/imgui_impl_vulkan.h"
-
-#include "window/fonts.hpp"
 
 #include "shl/format.hpp"
 #include "shl/string.hpp"
-#include "shl/array.hpp"
-#include "shl/murmur_hash.hpp" // __LINE_HASH__
+#include "shl/assert.hpp"
+#include "shl/print.hpp"
 
 #include "allegrex/disassemble.hpp"
 
 #include "allegrexplorer_info.hpp"
 #include "allegrexplorer_context.hpp"
+#include "allegrexplorer_settings.hpp"
+
+#include "window/colorscheme.hpp"
 #include "window/window_imgui_util.hpp"
 
 #define U32_FORMAT   "%08x"
@@ -27,17 +27,13 @@ static void _imgui_menu_bar()
     {
         if (ImGui::BeginMenu("File"))
         {
-            /*
             if (ImGui::MenuItem("Open...", "Ctrl+O"))
             {
-                // TODO: implement this...
-                // is there really no default file picker in imgui?
-                // All the other ones I found were pretty bad...
+                // TODO: implement this
             }
-            */
 
             if (ImGui::MenuItem("Close", "Ctrl+W"))
-                close_window(actx.window);
+                window_close(actx.window);
 
             ImGui::EndMenu();
         }
@@ -49,6 +45,35 @@ static void _imgui_menu_bar()
             if (ImGui::MenuItem("Goto Address / Symbol", "Ctrl+G"))
             {
                 // open_goto_popup();
+            }
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Settings"))
+        {
+            if (ImGui::BeginMenu("Colorscheme"))
+            {
+                static const colorscheme *schemes = nullptr;
+                static int count = 0;
+                static int selection = 0;
+
+                if (schemes == nullptr)
+                    colorscheme_get_all(&schemes, &count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    if (schemes + i == colorscheme_get_current())
+                        selection = i;
+
+                    if (ImGui::RadioButton(schemes[i].name, &selection, i))
+                    {
+                        selection = i;
+                        colorscheme_set(schemes + i);
+                    }
+                }
+
+                ImGui::EndMenu();
             }
 
             ImGui::EndMenu();
@@ -161,14 +186,14 @@ static void _show_popups(ImGuiID dockspace_id)
 
 static void _update(GLFWwindow *_, double dt)
 {
-    ui_new_frame();
+    imgui_new_frame();
 
     int windowflags = ImGuiWindowFlags_NoMove
                     | ImGuiWindowFlags_NoDecoration
                     | ImGuiWindowFlags_MenuBar
                     | ImGuiWindowFlags_NoBackground;
 
-    ui_set_next_window_full_size();
+    imgui_set_next_window_full_size();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin(allegrexplorer_NAME, nullptr, windowflags);
@@ -191,7 +216,7 @@ static void _update(GLFWwindow *_, double dt)
 
     ImGui::End();
 
-    ui_end_frame();
+    imgui_end_frame();
 }
 
 static bool _load_psp_elf(const char *path, error *err)
@@ -205,37 +230,6 @@ static bool _load_psp_elf(const char *path, error *err)
     return true;
 }
 
-#include "window/find_font.hpp"
-
-static void _load_fonts()
-{
-    float scale = get_window_scaling(actx.window);
-    int font_size = 20 * scale;
-
-    ff_cache *fc = ff_load_font_cache();
-    defer { ff_unload_font_cache(fc); };
-
-    const char *font_paths_monospace_bold[font_paths_monospace_count * 2];
-
-    for (int i = 0; i < font_paths_monospace_count; ++i)
-    {
-        font_paths_monospace_bold[i*2] = font_paths_monospace[i*2];
-        font_paths_monospace_bold[i*2 + 1] = "Bold";
-    }
-
-    const char *ui_font_path = ff_find_first_font_path(fc, (const char**)font_paths_ui, font_paths_ui_count * 2, nullptr);
-    const char *monospace_font_path = ff_find_first_font_path(fc, (const char**)font_paths_monospace, font_paths_monospace_count * 2, nullptr);
-    const char *monospace_bold_font_path = ff_find_first_font_path(fc, (const char**)font_paths_monospace_bold, font_paths_monospace_count * 2, nullptr);
-
-    assert(ui_font_path != nullptr);
-    assert(monospace_font_path != nullptr);
-    assert(monospace_bold_font_path != nullptr);
-
-    ImGuiIO &io = ImGui::GetIO(); (void)io;
-    actx.ui.fonts.ui = io.Fonts->AddFontFromFileTTF(ui_font_path, font_size);
-    actx.ui.fonts.mono = io.Fonts->AddFontFromFileTTF(monospace_font_path, font_size);
-    actx.ui.fonts.mono_bold = io.Fonts->AddFontFromFileTTF(monospace_bold_font_path, font_size);
-}
 
 static void _key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
@@ -247,35 +241,72 @@ static void _key_callback(GLFWwindow *window, int key, int scancode, int action,
         // open_goto_popup();
     }
     else if (pressed && ctrl && key == 'W')
-        close_window(window);
+        window_close(window);
 
     // TODO: forward & backward
 }
 
-int main(int argc, const char *argv[])
+static void _setup()
 {
-    error err{};
-
     init(&actx.disasm);
 
     window_init();
 
-    actx.window = create_window(allegrexplorer_NAME, 1600, 900);
-    set_window_keyboard_callback(actx.window, _key_callback);
-    ui_init(actx.window);
+    // the size is just a placeholder, since we don't load imgui settings (which hold
+    // the window size, position, etc), before creating the window.
+    actx.window = window_create(allegrexplorer_NAME, 1600, 900);
+    window_set_keyboard_callback(actx.window, _key_callback);
 
-    _load_fonts();
+    imgui_init(actx.window);
+
+    // settings
+    settings_init();
+
+    ImGui::LoadIniSettingsFromDisk(ImGui::GetIO().IniFilename);
+
+    allegrexplorer_settings *settings = settings_get();
+
+    window_set_size(actx.window, settings->window.width, settings->window.height);
+
+    if (settings->window.x != 0 && settings->window.y != 0)
+        window_set_position(actx.window, settings->window.x, settings->window.y);
+
+    if (settings->window.maximized)
+        window_maximize(actx.window);
+
+    // fonts
+    float scale = window_get_scaling(actx.window);
+    ui_load_fonts(&actx.ui, scale);
+}
+
+static void _cleanup()
+{
+    // save window size
+    allegrexplorer_settings *settings = settings_get();
+    
+    window_get_size(actx.window, &settings->window.width, &settings->window.height);
+    window_get_position(actx.window, &settings->window.x, &settings->window.y);
+    settings->window.maximized = window_is_maximized(actx.window);
+
+    imgui_exit(actx.window);
+    window_destroy(actx.window);
+    window_exit();
+
+    free(&actx.disasm);
+}
+
+int main(int argc, const char *argv[])
+{
+    _setup();
+
+    error err{};
 
     if (argc > 1)
         _load_psp_elf(argv[1], &err);
 
     window_event_loop(actx.window, _update);
 
-    ui_exit(actx.window);
-    destroy_window(actx.window);
-    window_exit();
-
-    free(&actx.disasm);
+    _cleanup();
 
     return 0;
 }

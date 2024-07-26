@@ -709,8 +709,8 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
     ImGuiStorage *storage = ImGui::GetStateStorage(); (void)storage;
     ImGuiStyle *style = &g.Style;
 
-    bool alt  = ImGui::GetIO().KeyMods & ImGuiModFlags_Alt;
-    bool ctrl = ImGui::GetIO().KeyMods & ImGuiModFlags_Ctrl;
+    bool alt  = ImGui::GetIO().KeyMods & ImGuiMod_Alt;
+    bool ctrl = ImGui::GetIO().KeyMods & ImGuiMod_Ctrl;
 
     (void)label;
     (void)out_filebuf;
@@ -833,7 +833,7 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
     ImGui::PopStyleVar();
 
     // INPUT BAR
-    const float total_space = ImGui::GetContentRegionMaxAbs().x;
+    const float total_space = ImGui::GetContentRegionMax().x;
     const float min_size_left = 200.f;
 
     if (!_ini_settings.edit_bar)

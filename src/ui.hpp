@@ -29,3 +29,5 @@ struct allegrexplorer_ui
 void init(allegrexplorer_ui *ui);
 void free(allegrexplorer_ui *ui);
 
+void ui_load_fonts(allegrexplorer_ui *ui, float scale);
+

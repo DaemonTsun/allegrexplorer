@@ -6,15 +6,22 @@ struct GLFWwindow;
 void window_init();
 void window_exit();
 
-GLFWwindow *create_window(const char *title, int width, int height);
-void close_window(GLFWwindow *window);
-void destroy_window(GLFWwindow *window);
+GLFWwindow *window_create(const char *title, int width, int height);
+void window_close(GLFWwindow *window);
+void window_destroy(GLFWwindow *window);
 
-float get_window_scaling(GLFWwindow *window);
+float window_get_scaling(GLFWwindow *window);
+void window_set_size(GLFWwindow *window, int width, int height);
+void window_get_size(GLFWwindow *window, int *width, int *height);
+void window_set_position(GLFWwindow *window, int x, int y);
+void window_get_position(GLFWwindow *window, int *x, int *y);
+void window_maximize(GLFWwindow *window);
+void window_restore(GLFWwindow *window);
+bool window_is_maximized(GLFWwindow *window);
 
 // events
 typedef void (*keyboard_callback)(GLFWwindow *window, int key, int scancode, int action, int mods);
-void set_window_keyboard_callback(GLFWwindow *window, keyboard_callback cb);
+void window_set_keyboard_callback(GLFWwindow *window, keyboard_callback cb);
 
 typedef void (*event_loop_update_callback)(GLFWwindow *, double);
 typedef void (*event_loop_render_callback)(GLFWwindow *, double);
@@ -28,9 +35,9 @@ void window_event_loop(GLFWwindow *window
                      , double min_fps = -1.0);
 
 // UI
-void ui_init(GLFWwindow *window);
-void ui_exit(GLFWwindow *window);
+void imgui_init(GLFWwindow *window);
+void imgui_exit(GLFWwindow *window);
 
-void ui_new_frame();
-void ui_end_frame();
-void ui_set_next_window_full_size();
+void imgui_new_frame();
+void imgui_end_frame();
+void imgui_set_next_window_full_size();

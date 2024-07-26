@@ -39,7 +39,7 @@ void window_exit()
     glfwTerminate();
 }
 
-GLFWwindow *create_window(const char *title, int width, int height)
+GLFWwindow *window_create(const char *title, int width, int height)
 {
     GLFWwindow *ret = glfwCreateWindow(width, height, title, nullptr, nullptr);
 
@@ -52,17 +52,17 @@ GLFWwindow *create_window(const char *title, int width, int height)
     return ret;
 }
 
-void close_window(GLFWwindow *window)
+void window_close(GLFWwindow *window)
 {
     glfwSetWindowShouldClose(window, true);
 }
 
-void destroy_window(GLFWwindow *window)
+void window_destroy(GLFWwindow *window)
 {
     glfwDestroyWindow(window);
 }
 
-float get_window_scaling(GLFWwindow *window)
+float window_get_scaling(GLFWwindow *window)
 {
     float sx;
     float sy;
@@ -71,7 +71,42 @@ float get_window_scaling(GLFWwindow *window)
     return sx > sy ? sx : sy;
 }
 
-void set_window_keyboard_callback(GLFWwindow *window, keyboard_callback cb)
+void window_set_size(GLFWwindow *window, int width, int height)
+{
+    glfwSetWindowSize(window, width, height);
+}
+
+void window_get_size(GLFWwindow *window, int *width, int *height)
+{
+    glfwGetWindowSize(window, width, height);
+}
+
+void window_set_position(GLFWwindow *window, int x, int y)
+{
+    glfwSetWindowPos(window, x, y);
+}
+
+void window_get_position(GLFWwindow *window, int *x, int *y)
+{
+    glfwGetWindowPos(window, x, y);
+}
+
+void window_maximize(GLFWwindow *window)
+{
+    glfwMaximizeWindow(window);
+}
+
+void window_restore(GLFWwindow *window)
+{
+    glfwRestoreWindow(window);
+}
+
+bool window_is_maximized(GLFWwindow *window)
+{
+    return glfwGetWindowAttrib(window, GLFW_MAXIMIZED) != 0;
+}
+
+void window_set_keyboard_callback(GLFWwindow *window, keyboard_callback cb)
 {
     glfwSetKeyCallback(window, cb);
 }
@@ -114,7 +149,7 @@ void window_event_loop(GLFWwindow *window, event_loop_update_callback update, ev
     }
 }
 
-void ui_init(GLFWwindow *window)
+void imgui_init(GLFWwindow *window)
 {
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO(); (void)io;
@@ -129,7 +164,7 @@ void ui_init(GLFWwindow *window)
     colorscheme_init();
 }
 
-void ui_exit(GLFWwindow *window)
+void imgui_exit(GLFWwindow *window)
 {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -139,19 +174,19 @@ void ui_exit(GLFWwindow *window)
     colorscheme_free();
 }
 
-void ui_new_frame()
+void imgui_new_frame()
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
-void ui_end_frame()
+void imgui_end_frame()
 {
     ImGui::EndFrame();
 }
 
-void ui_set_next_window_full_size()
+void imgui_set_next_window_full_size()
 {
 #ifdef IMGUI_HAS_VIEWPORT
     ImGuiViewport* viewport = ImGui::GetMainViewport();

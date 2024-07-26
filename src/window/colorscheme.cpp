@@ -118,6 +118,13 @@ void colorscheme_get_all(const colorscheme **out, int *out_count)
     *out_count = _colorschemes.size;
 }
 
+static const colorscheme *_current_scheme = nullptr;
+
+const colorscheme *colorscheme_get_current()
+{
+    return _current_scheme;
+}
+
 void colorscheme_set(const colorscheme *scheme)
 {
     assert(scheme != nullptr);
@@ -125,4 +132,5 @@ void colorscheme_set(const colorscheme *scheme)
     ImGuiStyle *st = &ImGui::GetStyle();
     scheme->apply(st);
     set_string(&_ini_settings.colorscheme, scheme->name);
+    _current_scheme = scheme;
 }
