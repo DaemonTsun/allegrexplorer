@@ -2,6 +2,7 @@
 #pragma once
 
 #include "allegrex/disassemble.hpp"
+
 #include "ui.hpp"
 
 struct GLFWwindow;
@@ -11,16 +12,12 @@ struct allegrexplorer_context
     psp_disassembly disasm;
 
     GLFWwindow *window;
-    ui_context ui;
+    allegrexplorer_ui ui;
 
-    char file_offset_format[32];
-    char address_name_format[32];
-
+    bool show_debug_info;
 #ifndef NDEBUG
     struct _debug
     {
-        float view_min_y;
-        float view_max_y;
     } debug;
 #endif
 };
@@ -29,7 +26,7 @@ void init(allegrexplorer_context *ctx);
 void free(allegrexplorer_context *ctx);
 
 // the global context
-extern allegrexplorer_context ctx;
+extern allegrexplorer_context actx;
 
 // gets the name of the address from the context. stored in static storage,
 // may be overwritten, so store the name elsewhere if you need it later.

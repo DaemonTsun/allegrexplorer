@@ -13,3 +13,6 @@
 [submodule "ext/glfw"]
 	path = ext/glfw
 	url = https://github.com/glfw/glfw
+[submodule "ext/fs"]
+	path = ext/fs
+	url = https://github.com/daemontsun/fs

@@ -25,7 +25,8 @@ add_exe(allegrexplorer
                  ${imgui_INCLUDE_DIRS}
 
     EXT
-        LIB shl      0.9.1 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB shl      0.9.4 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB fs       0.8.2 "${ROOT}/ext/fs"  INCLUDE LINK GIT_SUBMODULE
         LIB allegrex 1.0.3 "${ROOT}/ext/liballegrex" INCLUDE LINK GIT_SUBMODULE
 
     SUBMODULES
