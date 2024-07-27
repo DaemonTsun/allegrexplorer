@@ -2,16 +2,16 @@
 
 Work-in-progress disassembly tool for PSP (E)BOOT.BIN files.
 
-![image](https://github.com/DaemonTsun/allegrexplorer/assets/96687758/cdba9f99-7731-45e2-9828-2efe1c3e27a4)
+Currently being rewritten.
 
 ## Features
 
 - Working
   - Disassembling of PSP (E)BOOT.BIN files, both encrypted and decrypted
   - Display of PSP module information
-  - Elf section listing with search
-  - Full display of the disassembly, grouped by sections and functions (jump targets)
 - Planned (in no particular order)
+  - Elf section listing with search
+  - Disassembly
   - Shortcuts to jump to specific addresses (by entering an address, by clicking on a jump target, ...)
   - Symbol map with search feature
   - Syntax highlighting for arguments, names, addresses, ...
