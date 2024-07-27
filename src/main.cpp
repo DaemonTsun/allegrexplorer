@@ -12,6 +12,8 @@
 #include "allegrexplorer_context.hpp"
 #include "allegrexplorer_settings.hpp"
 
+#include "log_window.hpp"
+
 #include "window/colorscheme.hpp"
 #include "window/window_imgui_util.hpp"
 
@@ -89,47 +91,45 @@ static void _imgui_side_panel(ImGuiID dockspace_id)
     prx_sce_module_info *mod_info = &mod->module_info;
 
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
-    ImGui::Begin("Module Info");
+    if (ImGui::Begin("Module Info"))
+    {
+        ImGui::PushFont(actx.ui.fonts.mono);
+        float char_width = actx.ui.fonts.mono->Glyphs['x'].AdvanceX;
+        ImGui::PushItemWidth(PRX_MODULE_NAME_LEN * char_width);
+        ImGui::InputText("Module Name", mod_info->name, PRX_MODULE_NAME_LEN, ImGuiInputTextFlags_ReadOnly);
 
-    ImGui::PushFont(actx.ui.fonts.mono);
-    ImGui::InputText("Module Name", mod_info->name, PRX_MODULE_NAME_LEN, ImGuiInputTextFlags_ReadOnly);
-
-    int attr = mod_info->attribute;
-    ImGui::InputInt("Attributes", &attr, 0, 0, ImGuiInputTextFlags_ReadOnly
-                                             | ImGuiInputTextFlags_CharsHexadecimal);
+        int attr = mod_info->attribute;
+        ImGui::InputInt("Attributes", &attr, 0, 0, ImGuiInputTextFlags_ReadOnly
+                                                 | ImGuiInputTextFlags_CharsHexadecimal);
 
 
-    u32 v1 = mod_info->version[0];
-    ImGui::InputScalar("Version 1", ImGuiDataType_U32, &v1, nullptr, nullptr, U32_FORMAT,
-                       ImGuiInputTextFlags_ReadOnly);
+        u32 v1 = mod_info->version[0];
+        ImGui::InputScalar("Version 1", ImGuiDataType_U32, &v1, nullptr, nullptr, U32_FORMAT,
+                           ImGuiInputTextFlags_ReadOnly);
 
-    u32 v2 = mod_info->version[1];
-    ImGui::InputScalar("Version 2", ImGuiDataType_U32, &v2, nullptr, nullptr, U32_FORMAT,
-                       ImGuiInputTextFlags_ReadOnly);
-    
-    ImGui::InputScalar("gp", ImGuiDataType_U32, &mod_info->gp, nullptr, nullptr, VADDR_FORMAT,
-                       ImGuiInputTextFlags_ReadOnly);
-    
-    ImGui::InputScalar("Export start", ImGuiDataType_U32, &mod_info->export_offset_start,
-                       nullptr, nullptr, VADDR_FORMAT,
-                       ImGuiInputTextFlags_ReadOnly);
-    ImGui::InputScalar("Export end", ImGuiDataType_U32, &mod_info->export_offset_end,
-                       nullptr, nullptr, VADDR_FORMAT,
-                       ImGuiInputTextFlags_ReadOnly);
-    
-    ImGui::InputScalar("Import start", ImGuiDataType_U32, &mod_info->import_offset_start,
-                       nullptr, nullptr, VADDR_FORMAT,
-                       ImGuiInputTextFlags_ReadOnly);
-    ImGui::InputScalar("Import end", ImGuiDataType_U32, &mod_info->import_offset_end,
-                       nullptr, nullptr, VADDR_FORMAT,
-                       ImGuiInputTextFlags_ReadOnly);
-    ImGui::PopFont();
-
-    /*
-    ImGui::ColorPicker4("a", (float*)&section_color);
-    ImGui::ColorPicker4("b", (float*)&function_color);
-    */
-
+        u32 v2 = mod_info->version[1];
+        ImGui::InputScalar("Version 2", ImGuiDataType_U32, &v2, nullptr, nullptr, U32_FORMAT,
+                           ImGuiInputTextFlags_ReadOnly);
+        
+        ImGui::InputScalar("gp", ImGuiDataType_U32, &mod_info->gp, nullptr, nullptr, VADDR_FORMAT,
+                           ImGuiInputTextFlags_ReadOnly);
+        
+        ImGui::InputScalar("Export start", ImGuiDataType_U32, &mod_info->export_offset_start,
+                           nullptr, nullptr, VADDR_FORMAT,
+                           ImGuiInputTextFlags_ReadOnly);
+        ImGui::InputScalar("Export end", ImGuiDataType_U32, &mod_info->export_offset_end,
+                           nullptr, nullptr, VADDR_FORMAT,
+                           ImGuiInputTextFlags_ReadOnly);
+        
+        ImGui::InputScalar("Import start", ImGuiDataType_U32, &mod_info->import_offset_start,
+                           nullptr, nullptr, VADDR_FORMAT,
+                           ImGuiInputTextFlags_ReadOnly);
+        ImGui::InputScalar("Import end", ImGuiDataType_U32, &mod_info->import_offset_end,
+                           nullptr, nullptr, VADDR_FORMAT,
+                           ImGuiInputTextFlags_ReadOnly);
+        ImGui::PopItemWidth();
+        ImGui::PopFont();
+    }
     ImGui::End();
 }
 
@@ -209,6 +209,9 @@ static void _update(GLFWwindow *_, double dt)
     _sections_panel(dockspace_id);
     _jump_history_panel(dockspace_id);
 
+    ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+    log_window(actx.ui.fonts.mono);
+
     if (actx.show_debug_info)
         _debug_info_panel(dockspace_id);
 
@@ -277,6 +280,8 @@ static void _setup()
     // fonts
     float scale = window_get_scaling(actx.window);
     ui_load_fonts(&actx.ui, scale);
+
+    init(&actx);
 }
 
 static void _cleanup()
