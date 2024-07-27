@@ -3,6 +3,12 @@
 
 #include "imgui.h"
 
+#define U32_FORMAT   "%08x"
+#define VADDR_FORMAT "0x%08x"
+
+#define DISASM_LINE_FORMAT "%08x %08x"
+#define DISASM_MNEMONIC_FORMAT "%-10s"
+
 struct allegrexplorer_ui
 {
     struct _fonts

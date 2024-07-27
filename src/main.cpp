@@ -12,27 +12,48 @@
 #include "allegrexplorer_context.hpp"
 #include "allegrexplorer_settings.hpp"
 
+#include "psp_module_info_window.hpp"
 #include "log_window.hpp"
+#include "popups.hpp"
 
 #include "window/colorscheme.hpp"
 #include "window/window_imgui_util.hpp"
+#include "fs-ui/filepicker.hpp"
 
-#define U32_FORMAT   "%08x"
-#define VADDR_FORMAT "0x%08x"
+struct glfw_key_input
+{
+    int key;
+    int scancode;
+    int action;
+    int mods;
+};
 
-#define DISASM_LINE_FORMAT "%08x %08x"
-#define DISASM_MNEMONIC_FORMAT "%-10s"
+static array<glfw_key_input> _inputs_to_process{};
 
-static void _imgui_menu_bar()
+static bool _load_psp_elf(const char *path, error *err)
+{
+    free(&actx);
+    init(&actx);
+
+    if (!disassemble_psp_elf(path, &actx.disasm, err))
+    {
+        log_error(tformat("could not load psp elf from %s", path), err);
+        return false;
+    }
+
+    log_message(tformat("loaded psp elf from %s", path));
+
+    return true;
+}
+
+static void _menu_bar()
 {
     if (ImGui::BeginMenuBar())
     {
         if (ImGui::BeginMenu("File"))
         {
             if (ImGui::MenuItem("Open...", "Ctrl+O"))
-            {
-                // TODO: implement this
-            }
+                imgui_open_global_popup(POPUP_OPEN_ELF);
 
             if (ImGui::MenuItem("Close", "Ctrl+W"))
                 window_close(actx.window);
@@ -85,54 +106,6 @@ static void _imgui_menu_bar()
     }
 }
 
-static void _imgui_side_panel(ImGuiID dockspace_id)
-{
-    elf_psp_module *mod = &actx.disasm.psp_module;
-    prx_sce_module_info *mod_info = &mod->module_info;
-
-    ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Module Info"))
-    {
-        ImGui::PushFont(actx.ui.fonts.mono);
-        float char_width = actx.ui.fonts.mono->Glyphs['x'].AdvanceX;
-        ImGui::PushItemWidth(PRX_MODULE_NAME_LEN * char_width);
-        ImGui::InputText("Module Name", mod_info->name, PRX_MODULE_NAME_LEN, ImGuiInputTextFlags_ReadOnly);
-
-        int attr = mod_info->attribute;
-        ImGui::InputInt("Attributes", &attr, 0, 0, ImGuiInputTextFlags_ReadOnly
-                                                 | ImGuiInputTextFlags_CharsHexadecimal);
-
-
-        u32 v1 = mod_info->version[0];
-        ImGui::InputScalar("Version 1", ImGuiDataType_U32, &v1, nullptr, nullptr, U32_FORMAT,
-                           ImGuiInputTextFlags_ReadOnly);
-
-        u32 v2 = mod_info->version[1];
-        ImGui::InputScalar("Version 2", ImGuiDataType_U32, &v2, nullptr, nullptr, U32_FORMAT,
-                           ImGuiInputTextFlags_ReadOnly);
-        
-        ImGui::InputScalar("gp", ImGuiDataType_U32, &mod_info->gp, nullptr, nullptr, VADDR_FORMAT,
-                           ImGuiInputTextFlags_ReadOnly);
-        
-        ImGui::InputScalar("Export start", ImGuiDataType_U32, &mod_info->export_offset_start,
-                           nullptr, nullptr, VADDR_FORMAT,
-                           ImGuiInputTextFlags_ReadOnly);
-        ImGui::InputScalar("Export end", ImGuiDataType_U32, &mod_info->export_offset_end,
-                           nullptr, nullptr, VADDR_FORMAT,
-                           ImGuiInputTextFlags_ReadOnly);
-        
-        ImGui::InputScalar("Import start", ImGuiDataType_U32, &mod_info->import_offset_start,
-                           nullptr, nullptr, VADDR_FORMAT,
-                           ImGuiInputTextFlags_ReadOnly);
-        ImGui::InputScalar("Import end", ImGuiDataType_U32, &mod_info->import_offset_end,
-                           nullptr, nullptr, VADDR_FORMAT,
-                           ImGuiInputTextFlags_ReadOnly);
-        ImGui::PopItemWidth();
-        ImGui::PopFont();
-    }
-    ImGui::End();
-}
-
 static void _main_panel(ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
@@ -179,14 +152,59 @@ static void _debug_info_panel(ImGuiID dockspace_id)
     ImGui::End();
 }
 
-static void _show_popups(ImGuiID dockspace_id)
+static void _show_popups()
 {
-    // TODO: implement
+    if_imgui_begin_global_modal_popup(POPUP_OPEN_ELF)
+    {
+        static char buf[4096] = {};
+
+        if (FsUi::FileDialog(POPUP_OPEN_ELF, buf, 4095))
+        {
+            ImGui::CloseCurrentPopup();
+            
+            const_string path = to_const_string(buf);
+
+            if (!is_blank(path))
+            {
+                error err{};
+                _load_psp_elf(path.c_str, &err);
+            }
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
+static void _process_inputs()
+{
+    // this exists so we can process inputs during an imgui frame
+
+    for_array(input, &_inputs_to_process)
+    {
+        bool ctrl = (input->mods & 2) == 2;
+        bool pressed = input->action == 1;
+
+        if (pressed && ctrl)
+        {
+            switch (input->key)
+            {
+            case 'O': imgui_open_global_popup(POPUP_OPEN_ELF); break;
+            case 'G': break; // TODO: goto
+            case 'W': window_close(actx.window); break;
+            }
+        }
+
+        // TODO: forward & backward
+    }
+
+    clear(&_inputs_to_process);
 }
 
 static void _update(GLFWwindow *_, double dt)
 {
     imgui_new_frame();
+
+    _process_inputs();
 
     int windowflags = ImGuiWindowFlags_NoMove
                     | ImGuiWindowFlags_NoDecoration
@@ -196,57 +214,40 @@ static void _update(GLFWwindow *_, double dt)
     imgui_set_next_window_full_size();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
     ImGui::Begin(allegrexplorer_NAME, nullptr, windowflags);
-    ImGui::PopStyleVar();
+    {
+        ImGui::PopStyleVar();
 
-    _imgui_menu_bar();
+        _menu_bar();
 
-    ImGuiID dockspace_id = ImGui::GetID("main_dock");
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+        ImGuiID dockspace_id = ImGui::GetID("main_dock");
+        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 
-    _imgui_side_panel(dockspace_id);
-    _main_panel(dockspace_id);
-    _sections_panel(dockspace_id);
-    _jump_history_panel(dockspace_id);
+        ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+        psp_module_info_window();
 
-    ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
-    log_window(actx.ui.fonts.mono);
+        _main_panel(dockspace_id);
+        _sections_panel(dockspace_id);
+        _jump_history_panel(dockspace_id);
 
-    if (actx.show_debug_info)
-        _debug_info_panel(dockspace_id);
+        ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+        log_window(actx.ui.fonts.mono);
 
-    _show_popups(dockspace_id);
+        if (actx.show_debug_info)
+            _debug_info_panel(dockspace_id);
 
+        _show_popups();
+    }
     ImGui::End();
 
     imgui_end_frame();
 }
 
-static bool _load_psp_elf(const char *path, error *err)
-{
-    free(&actx);
-    init(&actx);
-
-    if (!disassemble_psp_elf(path, &actx.disasm, err))
-        return false;
-
-    return true;
-}
-
-
 static void _key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
-    bool ctrl = (mods & 2) == 2;
-    bool pressed = action == 1;
-
-    if (pressed && ctrl && key == 'G')
-    {
-        // open_goto_popup();
-    }
-    else if (pressed && ctrl && key == 'W')
-        window_close(window);
-
-    // TODO: forward & backward
+    (void)(window);
+    add_at_end(&_inputs_to_process, glfw_key_input{key, scancode, action, mods});
 }
 
 static void _setup()

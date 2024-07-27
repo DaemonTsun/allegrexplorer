@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "shl/defer.hpp"
+
 struct GLFWwindow;
 
 void window_init();
@@ -41,3 +43,21 @@ void imgui_exit(GLFWwindow *window);
 void imgui_new_frame();
 void imgui_end_frame();
 void imgui_set_next_window_full_size();
+
+unsigned int imgui_hash(const char *str);
+void imgui_push_override_id(unsigned int id);
+void imgui_pop_id();
+
+// use when opening & beginning of a popup are in different ID stacks
+void imgui_open_global_popup(const char *id);
+
+#define if_imgui_begin_global_popup(Id) \
+    imgui_push_override_id(imgui_hash(Id));\
+    if constexpr (defer { imgui_pop_id(); }; true)\
+    if (ImGui::BeginPopup(Id))
+
+#define if_imgui_begin_global_modal_popup(Id) \
+    imgui_push_override_id(imgui_hash(Id));\
+    if constexpr (defer { imgui_pop_id(); }; true)\
+    if (ImGui::BeginPopupModal(Id))
+

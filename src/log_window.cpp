@@ -87,11 +87,17 @@ void log_error(const_string msg, error *err)
     mt->level = LevelError;
     time_t t = time(nullptr);
     mt->timestamp = *localtime(&t);
+
+    if (err != nullptr)
+    {
 #ifndef NDEBUG
     format(&mt->message, "[%:%] % error: %", err->file, (s64)err->line, msg, err->what);
 #else
     format(&mt->message, "% error: %", msg, err->what);
 #endif
+    }
+    else
+        set_string(&mt->message, msg);
 }
 
 void log_clear()
