@@ -118,16 +118,57 @@ static void _main_panel(ImGuiID dockspace_id)
     ImGui::End();
 }
 
-static void _sections_panel(ImGuiID dockspace_id)
+static void _sections_window()
 {
-    ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
-    
+    ImGui::PushFont(actx.ui.fonts.mono);
     if (ImGui::Begin("Sections"))
     {
+        auto *dsecs = &actx.disasm.disassembly_sections;
 
+        for_array(_sec_i, dsec, dsecs)
+        {
+            ImGui::PushID(_sec_i);
+
+            if (ImGui::TreeNode("Section", "0x%08x %s", dsec->section->vaddr, dsec->section->name))
+            {
+                ImGui::InputScalar("ELF Offset", ImGuiDataType_U32, &dsec->section->content_offset,
+                                                 nullptr, nullptr, VADDR_FORMAT,
+                                                 ImGuiInputTextFlags_ReadOnly);
+                /* TODO: elf size
+                 *       end vaddr
+                 *       instruction count
+                 *       function count (not labels)
+                 *
+                ImGui::InputScalar("ELF Offset", ImGuiDataType_U32, &dsec->section->content_offset,
+                                                 nullptr, nullptr, VADDR_FORMAT,
+                                                 ImGuiInputTextFlags_ReadOnly);
+                 */
+
+                if (ImGui::TreeNode("Functions"))
+                {
+                    for (s32 i = 0; i < dsec->jump_count; ++i)
+                    {
+                        jump_destination *jmp = dsec->jumps + i;
+
+                        if (jmp->type != jump_type::Jump)
+                            continue;
+
+                        // TODO: button to disassembly
+                        ImGui::Text("0x%08x %s", jmp->address, address_label(*jmp));
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::TreePop();
+            }
+
+            ImGui::PopID();
+        }
     }
-
     ImGui::End();
+
+    ImGui::PopFont();
 }
 
 static void _jump_history_panel(ImGuiID dockspace_id)
@@ -228,7 +269,9 @@ static void _update(GLFWwindow *_, double dt)
         psp_module_info_window();
 
         _main_panel(dockspace_id);
-        _sections_panel(dockspace_id);
+
+        ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+        _sections_window();
         _jump_history_panel(dockspace_id);
 
         ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
