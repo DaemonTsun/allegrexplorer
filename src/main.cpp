@@ -121,6 +121,7 @@ static void _main_panel(ImGuiID dockspace_id)
 static void _sections_window()
 {
     ImGui::PushFont(actx.ui.fonts.mono);
+    
     if (ImGui::Begin("Sections"))
     {
         auto *dsecs = &actx.disasm.disassembly_sections;
@@ -131,18 +132,25 @@ static void _sections_window()
 
             if (ImGui::TreeNode("Section", "0x%08x %s", dsec->section->vaddr, dsec->section->name))
             {
+                float char_width = actx.ui.fonts.mono->Glyphs['x'].AdvanceX;
+                ImGui::PushItemWidth(12 * char_width);
                 ImGui::InputScalar("ELF Offset", ImGuiDataType_U32, &dsec->section->content_offset,
-                                                 nullptr, nullptr, VADDR_FORMAT,
-                                                 ImGuiInputTextFlags_ReadOnly);
-                /* TODO: elf size
-                 *       end vaddr
-                 *       instruction count
-                 *       function count (not labels)
-                 *
-                ImGui::InputScalar("ELF Offset", ImGuiDataType_U32, &dsec->section->content_offset,
-                                                 nullptr, nullptr, VADDR_FORMAT,
-                                                 ImGuiInputTextFlags_ReadOnly);
-                 */
+                                                 nullptr, nullptr, U32_FORMAT, ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar("ELF Size",   ImGuiDataType_U32, &dsec->section->content_size,
+                                                 nullptr, nullptr, U32_FORMAT, ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar("Vaddr", ImGuiDataType_U32, &dsec->section->vaddr,
+                                            nullptr, nullptr, VADDR_FORMAT, ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar("End Vaddr", ImGuiDataType_U32, &dsec->vaddr_end,
+                                            nullptr, nullptr, VADDR_FORMAT, ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar("# Instructions", ImGuiDataType_U32, &dsec->instruction_count,
+                                            nullptr, nullptr, "%d", ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar("# Jumps", ImGuiDataType_U32, &dsec->jump_count,
+                                            nullptr, nullptr, "%d", ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar("# Branches", ImGuiDataType_U32, &dsec->branch_count,
+                                            nullptr, nullptr, "%d", ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar("# Functions", ImGuiDataType_U32, &dsec->function_count,
+                                            nullptr, nullptr, "%d", ImGuiInputTextFlags_ReadOnly);
+                ImGui::PopItemWidth();
 
                 if (ImGui::TreeNode("Functions"))
                 {
