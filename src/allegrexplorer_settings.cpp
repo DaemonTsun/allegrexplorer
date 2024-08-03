@@ -19,6 +19,10 @@ static void init(allegrexplorer_settings *settings)
     settings->window.height = 900;
     settings->window.x = 0;
     settings->window.y = 0;
+
+    settings->disassembly.show_instruction_elf_offset = true;
+    settings->disassembly.show_instruction_vaddr = true;
+    settings->disassembly.show_instruction_opcode = true;
 };
 
 static void free(allegrexplorer_settings *settings)
@@ -47,8 +51,12 @@ static void _settings_ReadLineFn(ImGuiContext* ctx, ImGuiSettingsHandler* handle
     if (sscanf(line, "WindowWidth=%d",  &x) == 1) _settings.window.width = Max(x, 160);
     if (sscanf(line, "WindowHeight=%d", &x) == 1) _settings.window.height = Max(x, 90);
     if (sscanf(line, "WindowX=%d",  &x) == 1) _settings.window.x = x;
-    if (sscanf(line, "WindowY=%d", &x) == 1) _settings.window.y = x;
+    if (sscanf(line, "WindowY=%d", &x) == 1)  _settings.window.y = x;
     if (sscanf(line, "WindowMaximized=%d", &x) == 1) _settings.window.maximized = x == 1;
+
+    if (sscanf(line, "DisassemblyShowInstructionElfOffset=%d", &x) == 1) _settings.disassembly.show_instruction_elf_offset = x == 1;
+    if (sscanf(line, "DisassemblyShowInstructionVaddr=%d", &x) == 1)     _settings.disassembly.show_instruction_vaddr = x == 1;
+    if (sscanf(line, "DisassemblyShowInstructionOpcode=%d", &x) == 1)    _settings.disassembly.show_instruction_opcode = x == 1;
 }
 
 static void _settings_WriteAllFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf)
@@ -59,6 +67,10 @@ static void _settings_WriteAllFn(ImGuiContext* ctx, ImGuiSettingsHandler* handle
     buf->appendf("WindowX=%d\n", _settings.window.x);
     buf->appendf("WindowY=%d\n", _settings.window.y);
     buf->appendf("WindowMaximized=%d\n", _settings.window.maximized ? 1 : 0);
+
+    buf->appendf("DisassemblyShowInstructionElfOffset=%d\n", _settings.disassembly.show_instruction_elf_offset ? 1 : 0);
+    buf->appendf("DisassemblyShowInstructionVaddr=%d\n",     _settings.disassembly.show_instruction_vaddr ? 1 : 0);
+    buf->appendf("DisassemblyShowInstructionOpcode=%d\n",    _settings.disassembly.show_instruction_opcode ? 1 : 0);
 
     buf->append("\n");
 }

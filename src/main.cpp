@@ -4,6 +4,7 @@
 #include "shl/format.hpp"
 #include "shl/string.hpp"
 #include "shl/assert.hpp"
+#include "shl/allocator_arena.hpp"
 #include "shl/print.hpp"
 
 #include "allegrex/disassemble.hpp"
@@ -29,6 +30,8 @@ struct glfw_key_input
 };
 
 static array<glfw_key_input> _inputs_to_process{};
+#define FRAME_RAM (1 << 20) // 1 MB
+static arena _frame_memory{};
 
 static bool _load_psp_elf(const char *path, error *err)
 {
@@ -48,6 +51,8 @@ static bool _load_psp_elf(const char *path, error *err)
 
 static void _menu_bar()
 {
+    allegrexplorer_settings *settings = settings_get();
+
     if (ImGui::BeginMenuBar())
     {
         if (ImGui::BeginMenu("File"))
@@ -99,6 +104,15 @@ static void _menu_bar()
                 ImGui::EndMenu();
             }
 
+            if (ImGui::BeginMenu("Disassembly"))
+            {
+                ImGui::MenuItem("Display instruction ELF offset", NULL, &settings->disassembly.show_instruction_elf_offset);
+                ImGui::MenuItem("Display instruction Vaddr", NULL, &settings->disassembly.show_instruction_vaddr);
+                ImGui::MenuItem("Display instruction Opcode", NULL, &settings->disassembly.show_instruction_opcode);
+                
+                ImGui::EndMenu();
+            }
+
             ImGui::EndMenu();
         }
 
@@ -106,16 +120,61 @@ static void _menu_bar()
     }
 }
 
-static void _main_panel(ImGuiID dockspace_id)
+static void _disassembly_window()
 {
-    ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+    allegrexplorer_settings *settings = settings_get();
+    ImGui::PushFont(actx.ui.fonts.mono);
 
     if (ImGui::Begin("Disassembly"))
     {
+        auto *dsecs = &actx.disasm.disassembly_sections;
 
+        for_array(_sec_i, dsec, dsecs)
+        {
+            ImGui::Text("%s%s%s", settings->disassembly.show_instruction_elf_offset ? "Offset   " : "",
+                                  settings->disassembly.show_instruction_vaddr      ? "Vaddr    " : "",
+                                  settings->disassembly.show_instruction_opcode     ? "Opcode   " : "");
+
+            string line{};
+
+            for (s32 i = 0; i < dsec->instruction_count; ++i)
+            {
+                instruction *instr = dsec->instructions + i;
+                clear(&line);
+
+                if (settings->disassembly.show_instruction_elf_offset)
+                    format(&line, line.size, "%08x ", (u32)dsec->section->content_offset + i * (u32)sizeof(u32));
+
+                if (settings->disassembly.show_instruction_vaddr)
+                    format(&line, line.size, "%08x ", instr->address);
+
+                if (settings->disassembly.show_instruction_opcode)
+                    format(&line, line.size, "%08x ", instr->opcode);
+
+                const char *instr_name = get_mnemonic_name(instr->mnemonic);
+
+                if (requires_vfpu_suffix(instr->mnemonic))
+                {
+                    vfpu_size sz = get_vfpu_size(instr->opcode);
+                    const char *suf = size_suffix(sz);
+                    auto fullname = tformat("%%"_cs, instr_name, suf);
+
+                    format(&line, line.size, "%-10s", fullname);
+                }
+                else
+                    format(&line, line.size, "%-10s", instr_name);
+
+                ImGui::Text("%s", line.data);
+            }
+
+            free(&line);
+
+            break;
+        }
     }
 
     ImGui::End();
+    ImGui::PopFont();
 }
 
 static void _sections_window()
@@ -251,48 +310,54 @@ static void _process_inputs()
 
 static void _update(GLFWwindow *_, double dt)
 {
-    imgui_new_frame();
+    arena mem = _frame_memory;
 
-    _process_inputs();
-
-    int windowflags = ImGuiWindowFlags_NoMove
-                    | ImGuiWindowFlags_NoDecoration
-                    | ImGuiWindowFlags_MenuBar
-                    | ImGuiWindowFlags_NoBackground;
-
-    imgui_set_next_window_full_size();
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-
-    ImGui::Begin(allegrexplorer_NAME, nullptr, windowflags);
+    with_allocator(arena_allocator(&mem))
     {
-        ImGui::PopStyleVar();
+        imgui_new_frame();
 
-        _menu_bar();
+        _process_inputs();
 
-        ImGuiID dockspace_id = ImGui::GetID("main_dock");
-        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+        int windowflags = ImGuiWindowFlags_NoMove
+                        | ImGuiWindowFlags_NoDecoration
+                        | ImGuiWindowFlags_MenuBar
+                        | ImGuiWindowFlags_NoBackground;
 
-        ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
-        psp_module_info_window();
+        imgui_set_next_window_full_size();
 
-        _main_panel(dockspace_id);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
-        ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
-        _sections_window();
-        _jump_history_panel(dockspace_id);
+        ImGui::Begin(allegrexplorer_NAME, nullptr, windowflags);
+        {
+            ImGui::PopStyleVar();
 
-        ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
-        log_window(actx.ui.fonts.mono);
+            _menu_bar();
 
-        if (actx.show_debug_info)
-            _debug_info_panel(dockspace_id);
+            ImGuiID dockspace_id = ImGui::GetID("main_dock");
+            ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 
-        _show_popups();
+            ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+            psp_module_info_window();
+
+            ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+            _disassembly_window();
+
+            ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+            _sections_window();
+            _jump_history_panel(dockspace_id);
+
+            ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+            log_window(actx.ui.fonts.mono);
+
+            if (actx.show_debug_info)
+                _debug_info_panel(dockspace_id);
+
+            _show_popups();
+        }
+        ImGui::End();
+
+        imgui_end_frame();
     }
-    ImGui::End();
-
-    imgui_end_frame();
 }
 
 static void _key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
@@ -303,7 +368,7 @@ static void _key_callback(GLFWwindow *window, int key, int scancode, int action,
 
 static void _setup()
 {
-    init(&actx.disasm);
+    actx.disasm = {};
 
     window_init();
 
@@ -334,6 +399,7 @@ static void _setup()
     ui_load_fonts(&actx.ui, scale);
 
     init(&actx);
+    init(&_frame_memory, FRAME_RAM);
 }
 
 static void _cleanup()
@@ -348,7 +414,9 @@ static void _cleanup()
     imgui_exit(actx.window);
     window_destroy(actx.window);
     window_exit();
+    log_clear();
 
+    free(&_frame_memory);
     free(&actx.disasm);
 }
 

@@ -14,6 +14,13 @@ struct allegrexplorer_settings
         int y;
         bool maximized;
     } window;
+
+    struct _disassembly
+    {
+        bool show_instruction_elf_offset;
+        bool show_instruction_vaddr;
+        bool show_instruction_opcode;
+    } disassembly;
 };
 
 void settings_init();
