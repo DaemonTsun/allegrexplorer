@@ -151,6 +151,7 @@ static void _disassembly_window()
                 if (settings->disassembly.show_instruction_opcode)
                     format(&line, line.size, "%08x ", instr->opcode);
 
+                // format instruction mnemonic
                 const char *instr_name = get_mnemonic_name(instr->mnemonic);
 
                 if (requires_vfpu_suffix(instr->mnemonic))
@@ -164,7 +165,174 @@ static void _disassembly_window()
                 else
                     format(&line, line.size, "%-10s", instr_name);
 
+                s64 arg_jump_addr = -1;
+
+                // format instruction arguments
+                bool first_arg = true;
+                for (u32 i = 0; i < instr->argument_count; ++i)
+                {
+                    instruction_argument *arg = instr->arguments + i;
+                    argument_type arg_type = instr->argument_types[i];
+
+                    if (!first_arg && arg_type != argument_type::Base_Register)
+                        format(&line, line.size, ", ");
+
+                    first_arg = false;
+
+                    switch (arg_type)
+                    {
+                    case argument_type::Invalid:
+                        format(&line, line.size, "[?invalid?]");
+                        break;
+
+                    case argument_type::MIPS_Register:
+                        format(&line, line.size, "%s", register_name(arg->mips_register));
+                        break;
+
+                    case argument_type::MIPS_FPU_Register:
+                        format(&line, line.size, "%s", register_name(arg->mips_fpu_register));
+                        break;
+
+                    case argument_type::VFPU_Register:
+                        format(&line, line.size, "%s", register_name(arg->vfpu_register));
+                        break;
+
+                    case argument_type::VFPU_Matrix:
+                        format(&line, line.size, "%s%s", matrix_name(arg->vfpu_matrix)
+                                                       , size_suffix(arg->vfpu_matrix.size));
+                        break;
+
+                    case argument_type::VFPU_Condition:
+                        format(&line, line.size, "%s", vfpu_condition_name(arg->vfpu_condition));
+                        break;
+
+                    case argument_type::VFPU_Constant:
+                        format(&line, line.size, "%s", vfpu_constant_name(arg->vfpu_constant));
+                        break;
+
+                    case argument_type::VFPU_Prefix_Array:
+                    {
+                        vfpu_prefix_array *arr = &arg->vfpu_prefix_array;
+                        format(&line, line.size, "[%s,%s,%s,%s]", vfpu_prefix_name(arr->data[0])
+                                                   , vfpu_prefix_name(arr->data[1])
+                                                   , vfpu_prefix_name(arr->data[2])
+                                                   , vfpu_prefix_name(arr->data[3])
+                        );
+                        break;
+                    }
+
+                    case argument_type::VFPU_Destination_Prefix_Array:
+                    {
+                        vfpu_destination_prefix_array *arr = &arg->vfpu_destination_prefix_array;
+                        format(&line, line.size, "[%s,%s,%s,%s]"
+                                               , vfpu_destination_prefix_name(arr->data[0])
+                                               , vfpu_destination_prefix_name(arr->data[1])
+                                               , vfpu_destination_prefix_name(arr->data[2])
+                                               , vfpu_destination_prefix_name(arr->data[3])
+                        );
+                        break;
+                    }
+
+                    case argument_type::VFPU_Rotation_Array:
+                    {
+                        vfpu_rotation_array *arr = &arg->vfpu_rotation_array;
+                        format(&line, line.size, "[%s", vfpu_rotation_name(arr->data[0]));
+
+                        for (u32 j = 1; j < arr->size; ++j)
+                            format(&line, line.size, ",%s", vfpu_rotation_name(arr->data[j]));
+
+                        format(&line, line.size, "]");
+                        break;
+                    }
+
+                    case argument_type::PSP_Function_Pointer:
+                    {
+                        const psp_function *sc = arg->psp_function_pointer;
+                        format(&line, line.size, "%s <0x%08x>", sc->name, sc->nid);
+                        break;
+                    }
+
+#define ARG_TYPE_FORMAT(out, arg, ArgumentType, UnionMember, FMT) \
+            case argument_type::ArgumentType: \
+                format(&line, line.size, FMT, arg->UnionMember.data);\
+                break;
+
+                    ARG_TYPE_FORMAT(out, arg, Shift, shift, "%#x");
+
+                    case argument_type::Coprocessor_Register:
+                    {
+                        coprocessor_register *reg = &arg->coprocessor_register;
+                        format(&line, line.size, "[%u, %u]", reg->rd, reg->sel);
+                        break;
+                    }
+
+                    case argument_type::Base_Register:
+                        format(&line, line.size, "(%s)", register_name(arg->base_register.data));
+                        break;
+
+                    case argument_type::Jump_Address:
+                        // we don't format jumps or branches, instead we add
+                        // them as buttons.
+                        arg_jump_addr = arg->jump_address.data;
+                        // format(&line, line.size, "%s", address_name(arg->jump_address.data));
+                        break;
+
+                    case argument_type::Branch_Address:
+                        arg_jump_addr = arg->branch_address.data;
+                        // format(&line, line.size, "%s", address_name(arg->branch_address.data));
+                        break;
+
+                    case argument_type::Memory_Offset:
+                        format(&line, line.size, "%#x", (u32)arg->memory_offset.data);
+                        break;
+                    ARG_TYPE_FORMAT(out, arg, Immediate_u32, immediate_u32, "%#x");
+                    case argument_type::Immediate_s32:
+                    {
+                        s32 d = arg->immediate_s32.data;
+
+                        if (d < 0)
+                            format(&line, line.size, "-%#x", -d);
+                        else
+                            format(&line, line.size, "%#x", d);
+
+                        break;
+                    }
+
+                    ARG_TYPE_FORMAT(out, arg, Immediate_u16, immediate_u16, "%#x");
+                    case argument_type::Immediate_s16:
+                    {
+                        s16 d = arg->immediate_s16.data;
+
+                        if (d < 0)
+                            format(&line, line.size, "-%#x", -d);
+                        else
+                            format(&line, line.size, "%#x", d);
+
+                        break;
+                    }
+
+                    ARG_TYPE_FORMAT(out, arg, Immediate_u8,    immediate_u8,    "%#x");
+                    ARG_TYPE_FORMAT(out, arg, Immediate_float, immediate_float, "%f");
+                    ARG_TYPE_FORMAT(out, arg, Condition_Code,  condition_code,  "(CC[%#x])");
+                    ARG_TYPE_FORMAT(out, arg, Bitfield_Pos,    bitfield_pos,    "%#x");
+                    ARG_TYPE_FORMAT(out, arg, Bitfield_Size,   bitfield_size,   "%#x");
+
+                    ARG_TYPE_FORMAT(out, arg, String, string_argument, "%s");
+
+                    case argument_type::Extra:
+                    case argument_type::MAX:
+                    default:
+                        break;
+                    }
+                }
+
                 ImGui::Text("%s", line.data);
+
+                if (arg_jump_addr >= 0)
+                {
+                    ImGui::SameLine(0, 0);
+                    ImGui::SmallButton(address_name((u32)arg_jump_addr));
+                }
             }
 
             free(&line);
