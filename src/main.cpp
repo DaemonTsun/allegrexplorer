@@ -106,7 +106,7 @@ static void _menu_bar()
 
             if (ImGui::BeginMenu("Disassembly"))
             {
-                ImGui::MenuItem("Display instruction ELF offset", NULL, &settings->disassembly.show_instruction_elf_offset);
+                // ImGui::MenuItem("Display instruction ELF offset", NULL, &settings->disassembly.show_instruction_elf_offset);
                 ImGui::MenuItem("Display instruction Vaddr", NULL, &settings->disassembly.show_instruction_vaddr);
                 ImGui::MenuItem("Display instruction Opcode", NULL, &settings->disassembly.show_instruction_opcode);
                 
@@ -305,7 +305,30 @@ static void _disassembly_window()
 
     if (ImGui::Begin("Disassembly"))
     {
-        auto *dsecs = &actx.disasm.disassembly_sections;
+        ImGuiStyle *style  = &ImGui::GetStyle();
+        float start_height = style->WindowPadding.y + style->FramePadding.y * 2;
+        float font_height  = actx.ui.fonts.mono->FontSize;
+        float line_height  = font_height + style->ItemSpacing.y;
+
+        float computed_disassembly_height = start_height
+            + line_height * (actx.disasm.all_instructions.size)
+            + font_height;
+
+        // Set height upfront, so scrollbars are accurate
+        ImGui::Dummy(ImVec2(0, computed_disassembly_height));
+        ImGui::SetCursorPosY(start_height + font_height);
+
+        float from_y = ImGui::GetScrollY();
+        float to_y   = ImGui::GetScrollY() + ImGui::GetContentRegionAvail().y;
+        
+        if (from_y > to_y)
+            to_y = from_y;
+
+        s64 from_instr = (s64)((from_y - (start_height + font_height)) / line_height) - 4;
+        s64 to_instr   = (s64)((to_y   - (start_height + font_height)) / line_height) + 4;
+
+        from_instr = Clamp(from_instr, (s64)0, actx.disasm.all_instructions.size);
+        to_instr   = Clamp(to_instr,   (s64)0, actx.disasm.all_instructions.size);
 
         ImGui::Text("%s%s%s%-32s",
                 settings->disassembly.show_instruction_elf_offset ? "Offset   " : "",
@@ -313,51 +336,50 @@ static void _disassembly_window()
                 settings->disassembly.show_instruction_opcode     ? "Opcode   " : "",
                 "Name/Symbol");
 
-        for_array(_sec_i, dsec, dsecs)
+        string line{};
+
+        array<instruction> *all_instructions = &actx.disasm.all_instructions;
+
+        for (s64 i = from_instr; i < to_instr; ++i)
         {
-            ImGui::PushID(_sec_i);
+            instruction *instr = all_instructions->data + i;
+            ImGui::PushID(i);
 
-            string line{};
+            clear(&line);
 
-            for (s32 i = 0; i < dsec->instruction_count; ++i)
+            //if (settings->disassembly.show_instruction_elf_offset)
+            //    format(&line, line.size, "%08x ", (u32)dsec->section->content_offset + i * (u32)sizeof(u32));
+
+            if (settings->disassembly.show_instruction_vaddr)
+                format(&line, line.size, "%08x ", instr->address);
+
+            if (settings->disassembly.show_instruction_opcode)
+                format(&line, line.size, "%08x ", instr->opcode);
+
+            format(&line, line.size, "%-32s ", address_label(instr->address));
+
+            jump_destination jmp{};
+            jmp.address = max_value(u32);
+
+            _format_instruction(&line, instr, &jmp);
+
+            ImGui::SetCursorPosY(start_height + font_height + line_height * (i+1));
+            ImGui::Text("%s", line.data);
+
+            if (jmp.address != max_value(u32))
             {
-                instruction *instr = dsec->instructions + i;
+                ImGui::SameLine(0, 0);
 
-                clear(&line);
-
-                if (settings->disassembly.show_instruction_elf_offset)
-                    format(&line, line.size, "%08x ", (u32)dsec->section->content_offset + i * (u32)sizeof(u32));
-
-                if (settings->disassembly.show_instruction_vaddr)
-                    format(&line, line.size, "%08x ", instr->address);
-
-                if (settings->disassembly.show_instruction_opcode)
-                    format(&line, line.size, "%08x ", instr->opcode);
-
-                format(&line, line.size, "%-32s ", address_label(instr->address));
-
-                jump_destination jmp{};
-                jmp.address = max_value(u32);
-
-                _format_instruction(&line, instr, &jmp);
-
-                ImGui::Text("%s", line.data);
-
-                if (jmp.address != max_value(u32))
-                {
-                    ImGui::SameLine(0, 0);
-
-                    ImGui::SmallButton(address_label(jmp.address));
-                    ImGui::SetItemTooltip("%08x", jmp.address);
-                }
+                ImGui::SmallButton(address_label(jmp.address));
+                ImGui::SetItemTooltip("%08x", jmp.address);
             }
-
-            free(&line);
-
-            // break;
 
             ImGui::PopID();
         }
+
+        free(&line);
+
+        // break;
     }
 
     ImGui::End();
@@ -537,7 +559,12 @@ static void _update(GLFWwindow *_, double dt)
             log_window(actx.ui.fonts.mono);
 
             if (actx.show_debug_info)
+            {
                 _debug_info_panel(dockspace_id);
+#ifndef NDEBUG
+                ImGui::ShowDemoWindow();
+#endif
+            }
 
             _show_popups();
         }

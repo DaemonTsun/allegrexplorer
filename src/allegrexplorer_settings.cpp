@@ -20,7 +20,7 @@ static void init(allegrexplorer_settings *settings)
     settings->window.x = 0;
     settings->window.y = 0;
 
-    settings->disassembly.show_instruction_elf_offset = true;
+    settings->disassembly.show_instruction_elf_offset = false;
     settings->disassembly.show_instruction_vaddr = true;
     settings->disassembly.show_instruction_opcode = true;
 };

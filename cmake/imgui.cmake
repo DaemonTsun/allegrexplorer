@@ -23,7 +23,7 @@ set(imgui_SOURCES
     "${imgui_SOURCES_DIR}/backends/imgui_impl_opengl3.cpp"
 )
 
-if (Debug)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     list(APPEND imgui_SOURCES "${imgui_SOURCES_DIR}/imgui_demo.cpp")
 endif()
 
