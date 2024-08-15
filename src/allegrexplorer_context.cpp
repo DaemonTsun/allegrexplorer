@@ -86,3 +86,22 @@ const char *address_label(jump_destination jmp)
 
     return ret.c_str;
 }
+
+s64 instruction_index_by_vaddr(u32 vaddr)
+{
+    instruction *instrs = actx.disasm.all_instructions.data;
+    s64 instr_count = actx.disasm.all_instructions.size;
+
+    compare_function_p<u32, instruction> compare_instruction_vaddr =
+        [](const u32 *l, const instruction *r)
+        {
+            return compare_ascending(*l, r->address);
+        };
+
+    auto res = binary_search(instrs, instr_count, &vaddr, compare_instruction_vaddr);
+
+    if (res.last_comparison == 0)
+        return res.index;
+    else
+        return -1;
+}
