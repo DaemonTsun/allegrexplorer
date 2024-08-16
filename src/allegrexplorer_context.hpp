@@ -7,12 +7,20 @@
 
 struct GLFWwindow;
 
+enum class window_type
+{
+    None,
+    Disassembly,
+    /*  */
+};
+
 struct allegrexplorer_context
 {
     psp_disassembly disasm;
 
     GLFWwindow *window;
     allegrexplorer_ui ui;
+    window_type last_active_window;
 
     bool show_debug_info;
 #ifndef NDEBUG
@@ -37,3 +45,5 @@ const char *address_label(jump_destination jmp);
 
 // index into context.disasm.all_instructions, or -1 when not found
 s64 instruction_index_by_vaddr(u32 vaddr);
+
+void goto_address(u32 vaddr);

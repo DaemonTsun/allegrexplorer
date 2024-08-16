@@ -1,6 +1,7 @@
 
 #include "shl/format.hpp"
 #include "allegrexplorer_context.hpp"
+#include "disassembly_window.hpp"
 
 allegrexplorer_context actx;
 
@@ -8,6 +9,8 @@ void init(allegrexplorer_context *ctx)
 {
     init(&ctx->disasm);
     init(&ctx->ui);
+
+    ctx->last_active_window = window_type::Disassembly;
 
 #ifndef NDEBUG
     ctx->show_debug_info = true;
@@ -104,4 +107,17 @@ s64 instruction_index_by_vaddr(u32 vaddr)
         return res.index;
     else
         return -1;
+}
+
+void goto_address(u32 vaddr)
+{
+    switch (actx.last_active_window)
+    {
+    case window_type::None:
+        return;
+
+    case window_type::Disassembly:
+        disassembly_goto_address(vaddr);
+        break;
+    }
 }

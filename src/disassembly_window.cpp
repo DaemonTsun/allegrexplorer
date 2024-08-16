@@ -11,6 +11,8 @@ static struct _disassembly_goto_jump
 {
     u32 address;
     bool do_jump;
+
+
 } _disasm_jump;
 
 static void _format_instruction(string *out, instruction *instr, jump_destination *out_jump = nullptr)
@@ -198,6 +200,9 @@ void disassembly_window()
 
     if (ImGui::Begin("Disassembly"))
     {
+        if (ImGui::IsWindowFocused())
+            actx.last_active_window = window_type::Disassembly;
+
         ImGuiStyle *style  = &ImGui::GetStyle();
         const float start_height = style->WindowPadding.y + style->FramePadding.y * 2;
         const float font_height  = actx.ui.fonts.mono->FontSize;
@@ -215,7 +220,7 @@ void disassembly_window()
         {
             _disasm_jump.do_jump = false;
             
-            ImGui::SetScrollY(disassembly_address_to_offset(_disasm_jump.address) - ImGui::GetContentRegionAvail().y / 2);
+            ImGui::SetScrollY(disassembly_address_to_offset(_disasm_jump.address) - line_height - style->ItemSpacing.y);
         }
 
         // here we check which instructions we need to render given the current

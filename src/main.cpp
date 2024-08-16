@@ -72,9 +72,7 @@ static void _menu_bar()
             ImGui::MenuItem("Toggle debug info", nullptr, &actx.show_debug_info);
 
             if (ImGui::MenuItem("Goto Address / Symbol", "Ctrl+G"))
-            {
-                // open_goto_popup();
-            }
+                imgui_open_global_popup(POPUP_GOTO);
 
             ImGui::EndMenu();
         }
@@ -164,8 +162,11 @@ static void _sections_window()
                         if (jmp->type != jump_type::Jump)
                             continue;
 
-                        // TODO: button to disassembly
-                        ImGui::Text("0x%08x %s", jmp->address, address_label(*jmp));
+                        ImGui::Text("0x%08x", jmp->address);
+                        ImGui::SameLine();
+
+                        if (ImGui::SmallButton(address_label(*jmp)))
+                            goto_address(jmp->address);
                     }
 
                     ImGui::TreePop();
@@ -182,6 +183,7 @@ static void _sections_window()
     ImGui::PopFont();
 }
 
+/*
 static void _jump_history_panel(ImGuiID dockspace_id)
 {
     ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
@@ -192,10 +194,10 @@ static void _jump_history_panel(ImGuiID dockspace_id)
 
     ImGui::End();
 }
+*/
 
-static void _debug_info_panel(ImGuiID dockspace_id)
+static void _debug_info_window()
 {
-    ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Debug Info"))
     {
         ImGui::Text("debug text");
@@ -225,6 +227,21 @@ static void _show_popups()
 
         ImGui::EndPopup();
     }
+
+    if_imgui_begin_global_modal_popup(POPUP_GOTO)
+    {
+        u32 goto_addr = 0;
+
+        if (popup_goto(&goto_addr))
+        {
+            if (goto_addr != max_value(u32))
+                goto_address(goto_addr);
+
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 static void _process_inputs()
@@ -241,7 +258,7 @@ static void _process_inputs()
             switch (input->key)
             {
             case 'O': imgui_open_global_popup(POPUP_OPEN_ELF); break;
-            case 'G': break; // TODO: goto
+            case 'G': imgui_open_global_popup(POPUP_GOTO); break;
             case 'W': window_close(actx.window); break;
             }
         }
@@ -256,25 +273,25 @@ static void _update(GLFWwindow *_, double dt)
 {
     arena mem = _frame_memory;
 
-    with_allocator(arena_allocator(&mem))
+    imgui_new_frame();
+
+    _process_inputs();
+
+    int windowflags = ImGuiWindowFlags_NoMove
+                    | ImGuiWindowFlags_NoDecoration
+                    | ImGuiWindowFlags_MenuBar
+                    | ImGuiWindowFlags_NoBackground;
+
+    imgui_set_next_window_full_size();
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
+    ImGui::Begin(allegrexplorer_NAME, nullptr, windowflags);
     {
-        imgui_new_frame();
+        ImGui::PopStyleVar();
 
-        _process_inputs();
-
-        int windowflags = ImGuiWindowFlags_NoMove
-                        | ImGuiWindowFlags_NoDecoration
-                        | ImGuiWindowFlags_MenuBar
-                        | ImGuiWindowFlags_NoBackground;
-
-        imgui_set_next_window_full_size();
-
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-
-        ImGui::Begin(allegrexplorer_NAME, nullptr, windowflags);
+        with_allocator(arena_allocator(&mem))
         {
-            ImGui::PopStyleVar();
-
             _menu_bar();
 
             ImGuiID dockspace_id = ImGui::GetID("main_dock");
@@ -288,25 +305,25 @@ static void _update(GLFWwindow *_, double dt)
 
             ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
             _sections_window();
-            _jump_history_panel(dockspace_id);
 
             ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
             log_window(actx.ui.fonts.mono);
 
             if (actx.show_debug_info)
             {
-                _debug_info_panel(dockspace_id);
+                ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_FirstUseEver);
+                _debug_info_window();
 #ifndef NDEBUG
                 ImGui::ShowDemoWindow();
 #endif
             }
-
-            _show_popups();
         }
-        ImGui::End();
 
-        imgui_end_frame();
+        _show_popups();
     }
+    ImGui::End();
+
+    imgui_end_frame();
 }
 
 static void _key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
