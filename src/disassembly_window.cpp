@@ -7,13 +7,56 @@
 #include "allegrexplorer_settings.hpp"
 #include "disassembly_window.hpp"
 
-static struct _disassembly_goto_jump
+struct _disassembly_goto_jump
 {
     u32 address;
     bool do_jump;
+    bool is_history_back_jump;
 
+    float current_scroll_position;
 
-} _disasm_jump;
+    // contains offsets 
+    array<float> back_history;
+    array<float> forward_history;
+};
+
+static void init(_disassembly_goto_jump *jmp)
+{
+    fill_memory(jmp, 0);
+    jmp->back_history.allocator = actx.global_alloc;
+    jmp->forward_history.allocator = actx.global_alloc;
+}
+
+static void free(_disassembly_goto_jump *jmp)
+{
+    free(&jmp->back_history);
+    free(&jmp->forward_history);
+}
+
+static _disassembly_goto_jump *disasm_jump_data(bool _free = false)
+{
+    static _disassembly_goto_jump *_disasm_jump = nullptr;
+
+    if (_free)
+    {
+        if (_disasm_jump != nullptr)
+        {
+            free(_disasm_jump);
+            allocator_dealloc_T(actx.global_alloc, _disasm_jump, _disassembly_goto_jump);
+            _disasm_jump = nullptr;
+        }
+
+        return nullptr;
+    }
+
+    if (_disasm_jump == nullptr)
+    {
+        _disasm_jump = allocator_alloc_T(actx.global_alloc, _disassembly_goto_jump);
+        init(_disasm_jump);
+    }
+
+    return _disasm_jump;
+}
 
 static void _format_instruction(string *out, instruction *instr, jump_destination *out_jump = nullptr)
 {
@@ -198,7 +241,7 @@ void disassembly_window()
     allegrexplorer_settings *settings = settings_get();
     ImGui::PushFont(actx.ui.fonts.mono);
 
-    if (ImGui::Begin("Disassembly"))
+    if (ImGui::Begin("Disassembly", nullptr, ImGuiWindowFlags_NoNavInputs))
     {
         if (ImGui::IsWindowFocused())
             actx.last_active_window = window_type::Disassembly;
@@ -216,11 +259,24 @@ void disassembly_window()
         ImGui::Dummy(ImVec2(0, computed_disassembly_height));
         ImGui::SetCursorPosY(start_height + font_height);
 
-        if (_disasm_jump.do_jump)
+        _disassembly_goto_jump *disasm_jump = disasm_jump_data();
+        disasm_jump->current_scroll_position = ImGui::GetScrollY();
+
+        if (disasm_jump->do_jump)
         {
-            _disasm_jump.do_jump = false;
+            disasm_jump->do_jump = false;
             
-            ImGui::SetScrollY(disassembly_address_to_offset(_disasm_jump.address) - line_height - style->ItemSpacing.y);
+            ImGui::SetScrollY(disassembly_address_to_offset(disasm_jump->address) - line_height - style->ItemSpacing.y);
+
+            if (disasm_jump->is_history_back_jump)
+                ::add_at_end(&disasm_jump->forward_history, disasm_jump->current_scroll_position);
+            else
+            {
+                ::add_at_end(&disasm_jump->back_history, disasm_jump->current_scroll_position);
+                ::clear(&disasm_jump->forward_history);
+            }
+
+            disasm_jump->current_scroll_position = ImGui::GetScrollY();
         }
 
         // here we check which instructions we need to render given the current
@@ -297,8 +353,10 @@ void disassembly_window()
 
 void disassembly_goto_address(u32 addr)
 {
-    _disasm_jump.address = addr;
-    _disasm_jump.do_jump = true;
+    _disassembly_goto_jump *disasm_jump = disasm_jump_data();
+    disasm_jump->address = addr;
+    disasm_jump->do_jump = true;
+    disasm_jump->is_history_back_jump = false;
 }
 
 float disassembly_instruction_index_to_offset(s64 index)
@@ -313,12 +371,18 @@ float disassembly_instruction_index_to_offset(s64 index)
 
 s64   disassembly_offset_to_instruction_index(float offset)
 {
+    if (offset <= 0)
+        return 0;
+
     ImGuiStyle *style  = &ImGui::GetStyle();
     const float start_height = style->WindowPadding.y + style->FramePadding.y * 2;
     const float font_height  = actx.ui.fonts.mono->FontSize;
     const float line_height  = font_height + style->ItemSpacing.y;
     
-    return (s64)((offset - (start_height + font_height)) / line_height) - 1;
+    s64 ret = (s64)((offset - (start_height + font_height)) / line_height) + 1;
+    ret = Clamp(ret, (s64)0, actx.disasm.all_instructions.size - 1);
+
+    return ret;
 }
 
 float disassembly_address_to_offset(u32 address)
@@ -342,4 +406,52 @@ u32   disassembly_offset_to_address(float offset)
         return max_value(u32);
 
     return instrs[idx].address;
+}
+
+bool disassembly_history_can_go_back()
+{
+    return disasm_jump_data()->back_history.size > 0;
+}
+
+bool disassembly_history_can_go_forward()
+{
+    return disasm_jump_data()->forward_history.size > 0;
+}
+
+void disassembly_history_go_back()
+{
+    _disassembly_goto_jump *disasm_jump = disasm_jump_data();
+
+    if (disasm_jump->back_history.size <= 0)
+        return;
+
+    float pos = disasm_jump->back_history[disasm_jump->back_history.size - 1];
+    disasm_jump->back_history.size -= 1;
+
+    u32 addr = disassembly_offset_to_address(pos);
+
+    disasm_jump->address = addr;
+    disasm_jump->do_jump = true;
+    disasm_jump->is_history_back_jump = true;
+}
+
+void disassembly_history_go_forward()
+{
+    _disassembly_goto_jump *disasm_jump = disasm_jump_data();
+
+    if (disasm_jump->forward_history.size <= 0)
+        return;
+
+    float pos = disasm_jump->forward_history[disasm_jump->forward_history.size - 1];
+    disasm_jump->forward_history.size -= 1;
+
+    u32 addr = disassembly_offset_to_address(pos);
+    disasm_jump->address = addr;
+    disasm_jump->do_jump = true;
+    disasm_jump->is_history_back_jump = false;
+}
+
+void disassembly_history_clear()
+{
+    disasm_jump_data(true);
 }

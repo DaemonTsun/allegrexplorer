@@ -69,10 +69,29 @@ static void _menu_bar()
 
         if (ImGui::BeginMenu("View"))
         {
-            ImGui::MenuItem("Toggle debug info", nullptr, &actx.show_debug_info);
+            if (ImGui::MenuItem("Back", "Alt+Left", nullptr, history_can_go_back()))
+                history_go_back();
+
+            if (ImGui::MenuItem("Forward", "Alt+Right", nullptr, history_can_go_forward()))
+                history_go_forward();
 
             if (ImGui::MenuItem("Goto Address / Symbol", "Ctrl+G"))
                 imgui_open_global_popup(POPUP_GOTO);
+
+            ImGui::Separator();
+
+            if (ImGui::BeginMenu("Disassembly"))
+            {
+                // ImGui::MenuItem("Display instruction ELF offset", NULL, &settings->disassembly.show_instruction_elf_offset);
+                ImGui::MenuItem("Display instruction Vaddr", NULL, &settings->disassembly.show_instruction_vaddr);
+                ImGui::MenuItem("Display instruction Opcode", NULL, &settings->disassembly.show_instruction_opcode);
+                
+                ImGui::EndMenu();
+            }
+
+            ImGui::Separator();
+
+            ImGui::MenuItem("Display debug info", nullptr, &actx.show_debug_info);
 
             ImGui::EndMenu();
         }
@@ -100,15 +119,6 @@ static void _menu_bar()
                     }
                 }
 
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("Disassembly"))
-            {
-                // ImGui::MenuItem("Display instruction ELF offset", NULL, &settings->disassembly.show_instruction_elf_offset);
-                ImGui::MenuItem("Display instruction Vaddr", NULL, &settings->disassembly.show_instruction_vaddr);
-                ImGui::MenuItem("Display instruction Opcode", NULL, &settings->disassembly.show_instruction_opcode);
-                
                 ImGui::EndMenu();
             }
 
@@ -247,13 +257,16 @@ static void _show_popups()
 static void _process_inputs()
 {
     // this exists so we can process inputs during an imgui frame
+#define KEY_RIGHT              262
+#define KEY_LEFT               263
 
     for_array(input, &_inputs_to_process)
     {
         bool ctrl = (input->mods & 2) == 2;
+        bool alt  = (input->mods & 4) == 4;
         bool pressed = input->action == 1;
 
-        if (pressed && ctrl)
+        if (pressed && ctrl && !alt)
         {
             switch (input->key)
             {
@@ -263,7 +276,14 @@ static void _process_inputs()
             }
         }
 
-        // TODO: forward & backward
+        if (pressed && alt && !ctrl)
+        {
+            switch (input->key)
+            {
+            case KEY_LEFT:  history_go_back(); break;
+            case KEY_RIGHT: history_go_forward(); break;
+            }
+        }
     }
 
     clear(&_inputs_to_process);
@@ -272,6 +292,8 @@ static void _process_inputs()
 static void _update(GLFWwindow *_, double dt)
 {
     arena mem = _frame_memory;
+    actx.global_alloc = get_context_pointer()->allocator;
+    actx.frame_alloc = arena_allocator(&mem);
 
     imgui_new_frame();
 
@@ -290,7 +312,7 @@ static void _update(GLFWwindow *_, double dt)
     {
         ImGui::PopStyleVar();
 
-        with_allocator(arena_allocator(&mem))
+        with_allocator(actx.frame_alloc)
         {
             _menu_bar();
 

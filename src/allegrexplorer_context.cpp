@@ -23,6 +23,8 @@ void free(allegrexplorer_context *ctx)
 {
     free(&ctx->ui);
     free(&ctx->disasm);
+
+    disassembly_history_clear();
 }
 
 const char *address_name(u32 addr)
@@ -118,6 +120,60 @@ void goto_address(u32 vaddr)
 
     case window_type::Disassembly:
         disassembly_goto_address(vaddr);
+        break;
+    }
+}
+
+bool history_can_go_back()
+{
+    switch (actx.last_active_window)
+    {
+    case window_type::None:
+        return false;
+
+    case window_type::Disassembly:
+        return disassembly_history_can_go_back();
+    }
+
+    return false;
+}
+
+bool history_can_go_forward()
+{
+    switch (actx.last_active_window)
+    {
+    case window_type::None:
+        return false;
+
+    case window_type::Disassembly:
+        return disassembly_history_can_go_forward();
+    }
+
+    return false;
+}
+
+void history_go_back()
+{
+    switch (actx.last_active_window)
+    {
+    case window_type::None:
+        return;
+
+    case window_type::Disassembly:
+        disassembly_history_go_back();
+        break;
+    }
+}
+
+void history_go_forward()
+{
+    switch (actx.last_active_window)
+    {
+    case window_type::None:
+        return;
+
+    case window_type::Disassembly:
+        disassembly_history_go_forward();
         break;
     }
 }

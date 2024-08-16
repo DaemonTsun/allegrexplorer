@@ -16,6 +16,9 @@ enum class window_type
 
 struct allegrexplorer_context
 {
+    allocator global_alloc;
+    allocator frame_alloc;
+
     psp_disassembly disasm;
 
     GLFWwindow *window;
@@ -46,4 +49,9 @@ const char *address_label(jump_destination jmp);
 // index into context.disasm.all_instructions, or -1 when not found
 s64 instruction_index_by_vaddr(u32 vaddr);
 
+// global controls
 void goto_address(u32 vaddr);
+bool history_can_go_back();
+bool history_can_go_forward();
+void history_go_back();
+void history_go_forward();
