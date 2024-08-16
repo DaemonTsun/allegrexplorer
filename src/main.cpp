@@ -61,6 +61,16 @@ static void _menu_bar()
             if (ImGui::MenuItem("Open...", "Ctrl+O"))
                 imgui_open_global_popup(POPUP_OPEN_ELF);
 
+            if (ImGui::MenuItem("Export decrypted ELF...", "Ctrl+Shift+E", nullptr, actx.disasm.psp_module.elf_size > 0))
+                imgui_open_global_popup(POPUP_EXPORT_DECRYPTED_ELF);
+
+            /* TODO: implement
+            if (ImGui::MenuItem("Export disassembly...", "", nullptr, actx.disasm.psp_module.elf_size > 0))
+                imgui_open_global_popup(POPUP_EXPORT_DISASSEMBLY);
+            */
+
+            ImGui::Separator();
+
             if (ImGui::MenuItem("Close", "Ctrl+W"))
                 window_close(actx.window);
 
@@ -222,7 +232,8 @@ static void _show_popups()
     {
         static char buf[4096] = {};
 
-        if (FsUi::FileDialog(POPUP_OPEN_ELF, buf, 4095))
+        if (FsUi::FileDialog(POPUP_OPEN_ELF, buf, 4095, FsUi_DefaultDialogFilter,
+                    FsUi_FilepickerFlags_NoDirectories | FsUi_FilepickerFlags_SelectionMustExist))
         {
             ImGui::CloseCurrentPopup();
             
@@ -252,6 +263,52 @@ static void _show_popups()
 
         ImGui::EndPopup();
     }
+
+    if_imgui_begin_global_modal_popup(POPUP_EXPORT_DECRYPTED_ELF)
+    {
+        static char buf[4096] = {};
+
+        if (FsUi::FileDialog(POPUP_EXPORT_DECRYPTED_ELF, buf, 4095,
+                    "PSP Elf (bin)|*.bin|Any file|*.*",
+                    FsUi_FilepickerFlags_NoDirectories))
+        {
+            ImGui::CloseCurrentPopup();
+            
+            const_string path = to_const_string(buf);
+
+            if (!is_blank(path))
+            {
+                error err{};
+                io_handle f = io_open(path.c_str, open_mode::WriteTrunc, &err);
+
+                if (f == INVALID_IO_HANDLE)
+                    log_error(tformat("could not open file to export decrypted elf %s", path), &err);
+                else
+                {
+                    defer { io_close(f); };
+
+                    elf_psp_module *mod = &actx.disasm.psp_module;
+
+                    if (io_write(f, mod->elf_data, mod->elf_size, &err) < 0)
+                        log_error(tformat("could not write decrypted elf to %s", path), &err);
+                    else
+                        log_message(tformat("successfully exported decrypted elf to %s", path));
+                }
+            }
+        }
+
+        ImGui::EndPopup();
+    }
+
+    if_imgui_begin_global_modal_popup(POPUP_EXPORT_DISASSEMBLY)
+    {
+        if (ImGui::Button("a"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 static void _process_inputs()
@@ -262,11 +319,13 @@ static void _process_inputs()
 
     for_array(input, &_inputs_to_process)
     {
-        bool ctrl = (input->mods & 2) == 2;
-        bool alt  = (input->mods & 4) == 4;
+        bool shift = (input->mods & 1) == 1;
+        bool ctrl  = (input->mods & 2) == 2;
+        bool alt   = (input->mods & 4) == 4;
         bool pressed = input->action == 1;
 
-        if (pressed && ctrl && !alt)
+        // Ctrl
+        if (pressed && ctrl && !alt && !shift)
         {
             switch (input->key)
             {
@@ -276,12 +335,22 @@ static void _process_inputs()
             }
         }
 
-        if (pressed && alt && !ctrl)
+        // Alt
+        if (pressed && alt && !ctrl && !shift)
         {
             switch (input->key)
             {
             case KEY_LEFT:  history_go_back(); break;
             case KEY_RIGHT: history_go_forward(); break;
+            }
+        }
+
+        // Ctrl+Shift
+        if (pressed && ctrl && shift && !alt)
+        {
+            switch (input->key)
+            {
+            case 'E':  if (actx.disasm.psp_module.elf_size > 0) imgui_open_global_popup(POPUP_EXPORT_DECRYPTED_ELF); break;
             }
         }
     }

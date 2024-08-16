@@ -34,7 +34,7 @@ static _log_data *_get_log()
 
     if (log_data == nullptr)
     {
-        log_data = alloc<_log_data>();
+        log_data = allocator_alloc_T(default_allocator, _log_data);
         fill_memory(log_data, 0);
     }
 
