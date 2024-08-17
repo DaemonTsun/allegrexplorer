@@ -130,6 +130,14 @@ static void _menu_bar()
 
             ImGui::EndMenu();
         }
+        
+        if (ImGui::BeginMenu("Help"))
+        {
+            if (ImGui::MenuItem("About"))
+                imgui_open_global_popup(POPUP_ABOUT);
+
+            ImGui::EndMenu();
+        }
 
         ImGui::EndMenuBar();
     }
@@ -297,6 +305,49 @@ static void _show_popups()
 
         ImGui::EndPopup();
     }
+
+    if_imgui_begin_global_modal_popup(POPUP_ABOUT)
+    {
+        ImGui::Text(allegrexplorer_NAME " v" allegrexplorer_VERSION);
+        ImGui::Text("by DaemonTsun");
+
+        ImGui::NewLine();
+        ImGui::SeparatorText("Links:");
+
+        ImGui::BulletText("Source Code:");
+        ImGui::SameLine();
+        ImGui::TextLinkOpenURL("Github", "https://github.com/daemontsun/allegrexplorer");
+
+        ImGui::BulletText("liballegrex disassembly library:");
+        ImGui::SameLine();
+        ImGui::TextLinkOpenURL("Github", "https://github.com/daemontsun/liballegrex");
+
+        ImGui::BulletText("Allegrex instruction opcodes:");
+        ImGui::SameLine();
+        ImGui::TextLinkOpenURL("Link", "https://github.com/DaemonTsun/liballegrex/blob/master/instructions/main.s");
+
+        ImGui::BulletText("Allegrex instructions by hlide:");
+        ImGui::SameLine();
+        ImGui::TextLinkOpenURL("Link", "http://hlide.free.fr/");
+
+        ImGui::BulletText("Allegrex VFPU by hlide:");
+        ImGui::SameLine();
+        ImGui::TextLinkOpenURL("Link", "http://hlide.free.fr/vCpuxDox/vcpuxdox.html");
+
+        ImGui::BulletText("PSPDev toolchain:");
+        ImGui::SameLine();
+        ImGui::TextLinkOpenURL("Link", "https://github.com/pspdev/pspdev");
+
+        ImGui::NewLine();
+        ImGui::Separator();
+
+        ImGui::SetNextItemWidth(-1);
+        if (ImGui::Button("Close"))
+            ImGui::CloseCurrentPopup();
+
+        ImGui::EndPopup();
+    }
+
 
     if_imgui_begin_global_modal_popup(POPUP_EXPORT_DISASSEMBLY)
     {
@@ -477,7 +528,7 @@ static void _setup()
 
     // the size is just a placeholder, since we don't load imgui settings (which hold
     // the window size, position, etc), before creating the window.
-    actx.window = window_create(allegrexplorer_NAME, 1600, 900);
+    actx.window = window_create(allegrexplorer_NAME " v" allegrexplorer_VERSION, 1600, 900);
     window_set_keyboard_callback(actx.window, _key_callback);
 
     imgui_init(actx.window);

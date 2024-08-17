@@ -3,6 +3,7 @@ tags
 **.kdev4
 *.kdev4
 bin/
+bin-r/
 
 *.swp
 **.swp

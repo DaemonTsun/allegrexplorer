@@ -51,13 +51,13 @@ void imgui_pop_id();
 // use when opening & beginning of a popup are in different ID stacks
 void imgui_open_global_popup(const char *id);
 
-#define if_imgui_begin_global_popup(Id) \
+#define if_imgui_begin_global_popup(Id, ...) \
     imgui_push_override_id(imgui_hash(Id));\
     if constexpr (defer { imgui_pop_id(); }; true)\
-    if (ImGui::BeginPopup(Id))
+    if (ImGui::BeginPopup(Id __VA_OPT__(,) __VA_ARGS__))
 
-#define if_imgui_begin_global_modal_popup(Id) \
+#define if_imgui_begin_global_modal_popup(Id, ...) \
     imgui_push_override_id(imgui_hash(Id));\
     if constexpr (defer { imgui_pop_id(); }; true)\
-    if (ImGui::BeginPopupModal(Id))
+    if (ImGui::BeginPopupModal(Id __VA_OPT__(,) __VA_ARGS__))
 
