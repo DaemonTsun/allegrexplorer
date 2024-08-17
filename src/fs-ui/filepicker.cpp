@@ -1,4 +1,3 @@
-
 // future features:
 // TODO: multiple selection
 // TODO: jump when typing in result table
@@ -27,6 +26,7 @@
 #define FsUi_Ini_Dialog_Preferences_LastDirectory "LastDirectory"
 
 #define FsUi_Dialog_Navbar_Size 4096
+
 
 // fsui
 
@@ -435,19 +435,19 @@ static void _fs_ui_sort_by_imgui_spec(fs_ui_dialog *diag, ImGuiTableSortSpecs *s
 
 static inline ImVec2 floor(float x, float y)
 {
-    return ImVec2((int)x, (int)y);
+    return ImVec2((float)(int)x, (float)(int)y);
 }
 
 static inline ImVec2 floor(ImVec2 v)
 {
-    return ImVec2((int)v.x, (int)v.y);
+    return ImVec2((float)(int)v.x, (float)(int)v.y);
 }
 
 static void _fs_ui_render_filesystem_type(ImDrawList *lst, fs::filesystem_type type, float size, ImU32 color)
 {
     ImVec2 p0 = ImGui::GetCursorScreenPos() + ImVec2(0.5f, 0.5f);
     const float factor = 0.2f;
-    float thickness = (int)(size / 20.f);
+    float thickness = (float)(int)(size / 20.f);
 
     if (thickness < 1.f)
         thickness = 1.f;
@@ -456,7 +456,7 @@ static void _fs_ui_render_filesystem_type(ImDrawList *lst, fs::filesystem_type t
     {
     case fs::filesystem_type::Directory:
     {
-        p0 += ImVec2((int)(-size * factor * 0.25f), (int)(size * factor * 0.3f));
+        p0 += ImVec2((float)(int)(-size * factor * 0.25f), (float)(int)(size * factor * 0.3f));
         // Draw a folder
         const auto tl  = p0 + floor(size * (factor),            size * (factor * 2.f));
         const auto m1  = p0 + floor(size * (factor * 2.f),      size * (factor * 2.f));
@@ -523,6 +523,9 @@ static void _fs_ui_render_filesystem_type(ImDrawList *lst, fs::filesystem_type t
         ImGui::Dummy(ImVec2(size, 0));
         break;
     }
+    case fs::filesystem_type::CharacterFile:
+    case fs::filesystem_type::Pipe:
+    case fs::filesystem_type::Unknown:
     default: 
         ImGui::PushStyleColor(ImGuiCol_Text, color);
         ImGui::Text("?");
@@ -539,6 +542,30 @@ static void _format_date(char *buf, s64 buf_size, timespan *sp)
         return;
     }
 
+#if Windows
+    SYSTEMTIME tutc{};
+    SYSTEMTIME t{};
+
+    if (!FileTimeToSystemTime((const FILETIME *)sp, &tutc))
+    {
+        copy_string("?", buf);
+        return;
+    }
+
+    if (!SystemTimeToTzSpecificLocalTime(nullptr, &tutc, &t))
+    {
+        copy_string("?", buf);
+        return;
+    }
+
+    format(buf, buf_size, "%d-%02d-%02d %02d:%02d:%02d",
+           t.wYear,
+           t.wMonth,
+           t.wDay,
+           t.wHour,
+           t.wMinute,
+           t.wSecond);
+#else
     struct tm t;
 
     tzset(); // oof
@@ -554,10 +581,12 @@ static void _format_date(char *buf, s64 buf_size, timespan *sp)
         copy_string("?", buf);
         return;
     }
+#endif
 }
 
 static bool _fs_ui_dialog_load_path(fs_ui_dialog *diag)
 {
+    diag->current_dir.data[diag->current_dir.size] = '\0';
     fs::path *it = &diag->_it_path;
     fs::set_path(it, &diag->current_dir);
 
@@ -590,8 +619,33 @@ static bool _fs_ui_dialog_load_path(fs_ui_dialog *diag)
         // _is_directory also checks for symlinks targeting directories
         if (_is_directory(ditem))
             ditem->size = fs::get_children_count(it);
+
 #if Windows
-        // TODO: implement
+        fs::filesystem_info info{};
+
+        if (!_is_directory(ditem))
+        {
+            if (!fs::get_filesystem_info(it, &info, true, FS_QUERY_SIZE))
+            {
+                free(ditem);
+                remove_from_end(&diag->items);
+                continue;
+            }
+
+            ditem->size = fs::get_file_size(&info);
+        }
+
+        if (!fs::get_filesystem_info(it, &info, true, FS_QUERY_FILE_TIMES))
+        {
+            free(ditem);
+            remove_from_end(&diag->items);
+            continue;
+        }
+
+        ditem->modified.seconds = info.detail.file_times.last_write_time;
+        ditem->modified.nanoseconds = 0;
+        ditem->created.seconds = info.detail.file_times.creation_time;
+        ditem->created.nanoseconds = 0;
 #else // Linux
         fs::filesystem_info info{};
 
@@ -737,7 +791,6 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
         init(diag);
 
         fs_ui_parse_filters(to_const_string(filter), &diag->filters);
-        (void)fs_ui_matches_filter;
         assert(diag->filters.size > 0);
         set_string(&diag->selected_filter_label, diag->filters[0].label);
 
@@ -971,7 +1024,7 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
 
         for_array(i, pin, &_ini_settings.pins)
         {
-            ImGui::PushID(i);
+            ImGui::PushID((int)i);
             if (ImGui::Selectable(pin->name.c_str))
             {
                 diag->selection_buffer[0] = '\0';
@@ -1126,14 +1179,17 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
                             fs::set_path(&diag->_it_path, diag->current_dir);
                             fs::append_path(&diag->_it_path, item->path);
 
-                            s64 pin_index = fs_ui_path_pin_index(to_const_string(diag->_it_path), &_ini_settings.pins);
+                            s64 pin_index = -1;
+
+                            pin_index = fs_ui_path_pin_index(to_const_string(diag->_it_path), &_ini_settings.pins);
 
                             if (pin_index < 0)
                             {
                                 fs_ui_pin *pin = add_at_end(&_ini_settings.pins);
                                 init(pin);
 
-                                pin->path = copy_string(diag->_it_path.data);
+                                set_string(&pin->path, to_const_string(diag->_it_path));
+                                // pin->path = copy_string(diag->_it_path.data);
                                 pin->name.c_str = pin->path.data + (pin->path.size - item->path.size);
                                 pin->name.size = item->path.size;
                             }
@@ -1212,9 +1268,9 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
     ImGui::SetNextItemWidth(filter_width);
     if (ImGui::BeginCombo("##filter", diag->selected_filter_label.data, flags))
     {
-        for_array(i, filter, &diag->filters)
+        for_array(i, dfilter, &diag->filters)
         {
-            ImGui::PushID(i);
+            ImGui::PushID((int)i);
             if (ImGui::Selectable("##x", i == diag->selected_filter_index, ImGuiSelectableFlags_AllowOverlap))
             {
                 diag->selected_filter_index = i;
@@ -1227,13 +1283,13 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
             ImGui::PopID();
             ImGui::SameLine();
 
-            TextSlice(filter->label);
+            TextSlice(dfilter->label);
 
             ImGui::SameLine();
             ImGui::Text("(");
 
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, style->ItemSpacing.y));
-            fs_ui_dialog_filter_item *item = &filter->items[0];
+            fs_ui_dialog_filter_item *item = &dfilter->items[0];
 
             ImGui::SameLine();
             TextSlice(item->filename);
@@ -1244,9 +1300,9 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
                 TextSlice(item->extension);
             }
 
-            for (s64 ii = 1; ii < filter->items.size; ++ii)
+            for (s64 ii = 1; ii < dfilter->items.size; ++ii)
             {
-                item = filter->items.data + ii;
+                item = dfilter->items.data + ii;
 
                 ImGui::SameLine();
                 ImGui::Text(", ");

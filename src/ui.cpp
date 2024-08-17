@@ -16,7 +16,7 @@ void free(allegrexplorer_ui *ctx)
 
 void ui_load_fonts(allegrexplorer_ui *ui, float scale)
 {
-    int font_size = 20 * scale;
+    int font_size = (int)(20 * scale);
 
     ff_cache *fc = ff_load_font_cache();
     defer { ff_unload_font_cache(fc); };
@@ -38,7 +38,7 @@ void ui_load_fonts(allegrexplorer_ui *ui, float scale)
     assert(monospace_bold_font_path != nullptr);
 
     ImGuiIO &io = ImGui::GetIO(); (void)io;
-    ui->fonts.ui = io.Fonts->AddFontFromFileTTF(ui_font_path, font_size);
-    ui->fonts.mono = io.Fonts->AddFontFromFileTTF(monospace_font_path, font_size);
-    ui->fonts.mono_bold = io.Fonts->AddFontFromFileTTF(monospace_bold_font_path, font_size);
+    ui->fonts.ui = io.Fonts->AddFontFromFileTTF(ui_font_path, (float)font_size);
+    ui->fonts.mono = io.Fonts->AddFontFromFileTTF(monospace_font_path, (float)font_size);
+    ui->fonts.mono_bold = io.Fonts->AddFontFromFileTTF(monospace_bold_font_path, (float)font_size);
 }

@@ -1,6 +1,4 @@
 
-#include "backends/imgui_impl_vulkan.h"
-
 #include "shl/format.hpp"
 #include "shl/string.hpp"
 #include "shl/assert.hpp"
@@ -147,7 +145,7 @@ static void _sections_window()
 
         for_array(_sec_i, dsec, dsecs)
         {
-            ImGui::PushID(_sec_i);
+            ImGui::PushID((int)_sec_i);
 
             if (ImGui::TreeNode("Section", "0x%08x %s", dsec->section->vaddr, dsec->section->name))
             {

@@ -306,7 +306,7 @@ void disassembly_window()
         for (s64 i = from_instr; i < to_instr; ++i)
         {
             instruction *instr = all_instructions->data + i;
-            ImGui::PushID(i);
+            ImGui::PushID((int)i);
 
             clear(&line);
 

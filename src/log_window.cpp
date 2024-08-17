@@ -150,7 +150,7 @@ void log_window(ImFont *monospace_font)
                 msg->timestamp.tm_sec,
                 msg->message);
 
-            ImGui::PushID(i);
+            ImGui::PushID((int)i);
             ImGui::SetNextItemWidth(-FLT_MIN);
             ImGui::InputText("##", (char*)text.c_str, text.size, ImGuiInputTextFlags_ReadOnly);
             ImGui::PopID();
