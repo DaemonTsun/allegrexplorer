@@ -64,10 +64,8 @@ static void _menu_bar()
             if (ImGui::MenuItem("Export decrypted ELF...", "Ctrl+Shift+E", nullptr, actx.disasm.psp_module.elf_size > 0))
                 imgui_open_global_popup(POPUP_EXPORT_DECRYPTED_ELF);
 
-            /* TODO: implement
             if (ImGui::MenuItem("Export disassembly...", "", nullptr, actx.disasm.psp_module.elf_size > 0))
                 imgui_open_global_popup(POPUP_EXPORT_DISASSEMBLY);
-            */
 
             ImGui::Separator();
 
@@ -226,18 +224,22 @@ static void _debug_info_window()
     ImGui::End();
 }
 
+
+// disassembly_window.cpp
+void format_instruction(string *out, instruction *instr, jump_destination *out_jump);
+
 static void _show_popups()
 {
+    static char filebuf[4096] = {};
+
     if_imgui_begin_global_modal_popup(POPUP_OPEN_ELF)
     {
-        static char buf[4096] = {};
-
-        if (FsUi::FileDialog(POPUP_OPEN_ELF, buf, 4095, FsUi_DefaultDialogFilter,
+        if (FsUi::FileDialog(POPUP_OPEN_ELF, filebuf, 4095, FsUi_DefaultDialogFilter,
                     FsUi_FilepickerFlags_NoDirectories | FsUi_FilepickerFlags_SelectionMustExist))
         {
             ImGui::CloseCurrentPopup();
             
-            const_string path = to_const_string(buf);
+            const_string path = to_const_string(filebuf);
 
             if (!is_blank(path))
             {
@@ -266,15 +268,13 @@ static void _show_popups()
 
     if_imgui_begin_global_modal_popup(POPUP_EXPORT_DECRYPTED_ELF)
     {
-        static char buf[4096] = {};
-
-        if (FsUi::FileDialog(POPUP_EXPORT_DECRYPTED_ELF, buf, 4095,
+        if (FsUi::FileDialog(POPUP_EXPORT_DECRYPTED_ELF, filebuf, 4095,
                     "PSP Elf (bin)|*.bin|Any file|*.*",
                     FsUi_FilepickerFlags_NoDirectories))
         {
             ImGui::CloseCurrentPopup();
             
-            const_string path = to_const_string(buf);
+            const_string path = to_const_string(filebuf);
 
             if (!is_blank(path))
             {
@@ -302,9 +302,57 @@ static void _show_popups()
 
     if_imgui_begin_global_modal_popup(POPUP_EXPORT_DISASSEMBLY)
     {
-        if (ImGui::Button("a"))
+        if (FsUi::FileDialog(POPUP_EXPORT_DISASSEMBLY, filebuf, 4095,
+                    "Disassembly (.txt, .asm, .s)|*.txt;*.asm;*.s|Any file|*.*",
+                    FsUi_FilepickerFlags_NoDirectories))
         {
             ImGui::CloseCurrentPopup();
+            
+            const_string path = to_const_string(filebuf);
+
+            if (!is_blank(path))
+            {
+                error err{};
+                io_handle f = io_open(path.c_str, open_mode::WriteTrunc, &err);
+
+                if (f == INVALID_IO_HANDLE)
+                    log_error(tformat("could not open file to export decrypted elf %s", path), &err);
+                else
+                {
+                    defer { io_close(f); };
+
+                    string line{};
+                    defer { free(&line); };
+
+                    for_array(dsec, &actx.disasm.disassembly_sections)
+                    {
+                        clear(&line);
+                        
+                        format(&line, line.size, "\n// section %s\n", dsec->section->name);
+                        io_write(f, line.data, line.size);
+
+                        for (s64 i = 0; i < dsec->instruction_count; ++i)
+                        {
+                            instruction *instr = dsec->instructions + i;
+
+                            clear(&line);
+
+                            format(&line, line.size, "/* %08x %08x %08x %-32s */ ",
+                                    (u32)dsec->section->content_offset + i * (u32)sizeof(u32),
+                                    instr->address,
+                                    instr->opcode,
+                                    address_label(instr->address));
+
+                            format_instruction(&line, instr, nullptr);
+
+                            format(&line, line.size, "\n");
+                            io_write(f, line.data, line.size);
+                        }
+                    }
+
+                    log_message(tformat("successfully exported disassembly to %s", path));
+                }
+            }
         }
 
         ImGui::EndPopup();

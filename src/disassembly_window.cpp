@@ -58,7 +58,7 @@ static _disassembly_goto_jump *disasm_jump_data(bool _free = false)
     return _disasm_jump;
 }
 
-static void _format_instruction(string *out, instruction *instr, jump_destination *out_jump = nullptr)
+void format_instruction(string *out, instruction *instr, jump_destination *out_jump = nullptr)
 {
     // format instruction mnemonic
     const char *instr_name = get_mnemonic_name(instr->mnemonic);
@@ -324,7 +324,7 @@ void disassembly_window()
             jump_destination jmp{};
             jmp.address = max_value(u32);
 
-            _format_instruction(&line, instr, &jmp);
+            format_instruction(&line, instr, &jmp);
 
             ImGui::SetCursorPosY(start_height + font_height + line_height * (i+1));
             ImGui::Text("%s", line.data);
