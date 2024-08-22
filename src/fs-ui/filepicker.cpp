@@ -1,3 +1,4 @@
+
 // future features:
 // TODO: multiple selection
 // TODO: jump when typing in result table
@@ -95,6 +96,8 @@ static void free(fs_ui_ini_settings *settings)
 
 static void _fs_ui_ClearAllFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler)
 {
+    (void)ctx;
+    (void)handler;
     // tprint("ClearAll\n");
     free(&_ini_settings);
     init(&_ini_settings);
@@ -102,6 +105,8 @@ static void _fs_ui_ClearAllFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler)
 
 static void *_fs_ui_ReadOpenFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name)
 {
+    (void)ctx;
+    (void)handler;
     // tprint("ReadOpen %\n", name);
     ImGuiID id = 0;
 
@@ -124,6 +129,8 @@ static void *_fs_ui_ReadOpenFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler,
 
 static void _fs_ui_ReadLineFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* _entry, const char* _line)
 {
+    (void)ctx;
+    (void)handler;
     // tprint("ReadLine\n");
 
     ImGuiID *id = (ImGuiID*)_entry;
@@ -171,6 +178,7 @@ static void _fs_ui_ReadLineFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, 
 
 static void _fs_ui_WriteAllFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf)
 {
+    (void)ctx;
     // tprint("WriteAll\n");
 
     buf->appendf("[%s][" FsUi_Ini_Preferences "]\n", handler->TypeName);
@@ -887,7 +895,7 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
 
     // INPUT BAR
     const float total_space = ImGui::GetContentRegionMax().x;
-    const float min_size_left = 200.f;
+    const float min_size_left = 300.f;
 
     if (!_ini_settings.edit_bar)
     {
@@ -903,7 +911,7 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
                                                      nullptr,
                                                      navbar_content,
                                                      FsUi_Dialog_Navbar_Size - 1,
-                                                     ImVec2(Max(10.f, total_space - min_size_left - window->DC.CursorPos.x), 0),
+                                                     ImVec2(Max(10.f, total_space - min_size_left), 0),
                                                      ImGuiInputTextFlags_EnterReturnsTrue,
                                                      nullptr,
                                                      nullptr
@@ -933,7 +941,7 @@ bool FileDialog(const char *label, char *out_filebuf, size_t filebuf_size, const
         // The segment click bar
         ImGui::SameLine();
 
-        if (ImGui::BeginChild("##segment_click_bar", ImVec2(Max(10.f, total_space - min_size_left - window->DC.CursorPos.x), ImGui::GetFrameHeight()), 0, 0))
+        if (ImGui::BeginChild("##segment_click_bar", ImVec2(Max(10.f, total_space - min_size_left), ImGui::GetFrameHeight()), 0, 0))
         {
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style->ItemSpacing.x / 2, 0));
             ImGui::PushStyleColor(ImGuiCol_Button, style->Colors[ImGuiCol_WindowBg]);

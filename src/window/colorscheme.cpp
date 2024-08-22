@@ -46,12 +46,16 @@ static colorscheme_settings _ini_settings;
 
 static void _colorscheme_ClearAllFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler)
 {
+    (void)ctx;
+    (void)handler;
     free(&_ini_settings);
     init(&_ini_settings);
 }
 
 static void *_colorscheme_ReadOpenFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name)
 {
+    (void)ctx;
+    (void)handler;
     if (compare_strings(name, "Preferences") == 0)
         return &_ini_settings;
 
@@ -60,6 +64,10 @@ static void *_colorscheme_ReadOpenFn(ImGuiContext* ctx, ImGuiSettingsHandler* ha
 
 static void _colorscheme_ReadLineFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* _entry, const char* _line)
 {
+    (void)ctx;
+    (void)handler;
+    (void)_entry;
+
     const_string line = to_const_string(_line);
 
     if (begins_with(line, "Name="_cs))
@@ -82,6 +90,8 @@ static void _colorscheme_ReadLineFn(ImGuiContext* ctx, ImGuiSettingsHandler* han
 
 static void _colorscheme_WriteAllFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf)
 {
+    (void)ctx;
+
     if (is_blank(&_ini_settings.colorscheme))
         return;
 
@@ -133,4 +143,13 @@ void colorscheme_set(const colorscheme *scheme)
     scheme->apply(st);
     set_string(&_ini_settings.colorscheme, scheme->name);
     _current_scheme = scheme;
+}
+
+void colorscheme_set_default()
+{
+    if (_current_scheme != nullptr)
+        return;
+
+    const colorscheme *dark = _colorschemes.data + 1;
+    colorscheme_set(dark);
 }

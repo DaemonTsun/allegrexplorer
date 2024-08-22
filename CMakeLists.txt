@@ -14,7 +14,7 @@ find_package(OpenGL)
 set(fs_COMPILE_DEFINITIONS @Windows)
 
 add_exe(allegrexplorer
-    VERSION 0.1.0
+    VERSION 0.1.1
     SOURCES_DIR "${ROOT}/src"
     GENERATE_TARGET_HEADER "${ROOT}/src/allegrexplorer_info.hpp"
     CPP_VERSION 20

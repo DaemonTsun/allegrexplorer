@@ -539,6 +539,7 @@ static void _setup()
     ImGui::LoadIniSettingsFromDisk(ImGui::GetIO().IniFilename);
 
     allegrexplorer_settings *settings = settings_get();
+    colorscheme_set_default();
 
     window_set_size(actx.window, settings->window.width, settings->window.height);
 
@@ -583,7 +584,13 @@ int main(int argc, const char *argv[])
     if (argc > 1)
         _load_psp_elf(argv[1], &err);
 
+    // for some reason linux doesn't struggle with this and CPU usage stays at
+    // sane levels, while Windows spergs out into 30%-70% CPU usage when polling.
+#if Linux
     window_event_loop(actx.window, _update);
+#else
+    window_event_loop(actx.window, _update, default_render_function, 24.f);
+#endif
 
     _cleanup();
 
