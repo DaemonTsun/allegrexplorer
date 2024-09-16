@@ -55,12 +55,12 @@ bool popup_goto(u32 *out_addr)
     {
         clear(&goto_data->search_results);
 
-        if (!is_blank(goto_data->search_text))
+        if (!string_is_blank(goto_data->search_text))
         {
             // TODO: more sources of symbols
             for_hash_table(addr, sym, &actx.disasm.psp_module.symbols)
             {
-                if (begins_with(sym->name, goto_data->search_text))
+                if (string_begins_with(sym->name, goto_data->search_text))
                     ::add_at_end(&goto_data->search_results, _goto_search_result{.address = *addr, .name = sym->name});
             }
         }
@@ -80,16 +80,16 @@ bool popup_goto(u32 *out_addr)
 
     if (go)
     {
-        if (is_blank(goto_data->search_text))
+        if (string_is_blank(goto_data->search_text))
             return false;
 
-        char *end = goto_data->search_text;
-        unsigned long ul = to_unsigned_long(goto_data->search_text, &end, 16);
+        const_string end = to_const_string(goto_data->search_text);
+        u32 ul = string_to_u32(goto_data->search_text, &end, 16);
 
-        if (ul != 0ul || end != (char*)goto_data->search_text)
+        if (ul != 0ul || end.c_str != (char*)goto_data->search_text)
         {
             // input is an address
-            *out_addr = (u32)ul;
+            *out_addr = ul;
 
             goto_cleanup(goto_data);
             return true;
@@ -100,7 +100,7 @@ bool popup_goto(u32 *out_addr)
             // input is text
             for_hash_table(addr, sym, &actx.disasm.psp_module.symbols)
             {
-                if (begins_with(sym->name, goto_data->search_text))
+                if (string_begins_with(sym->name, goto_data->search_text))
                 {
                     *out_addr = *addr;
 

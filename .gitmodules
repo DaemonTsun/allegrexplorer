@@ -7,12 +7,9 @@
 [submodule "ext/liballegrex"]
 	path = ext/liballegrex
 	url = https://github.com/daemontsun/liballegrex
-[submodule "ext/imgui"]
-	path = ext/imgui
-	url = https://github.com/ocornut/imgui
-[submodule "ext/glfw"]
-	path = ext/glfw
-	url = https://github.com/glfw/glfw
 [submodule "ext/fs"]
 	path = ext/fs
 	url = https://github.com/daemontsun/fs
+[submodule "ext/window-base"]
+	path = ext/window-base
+	url = https://github.com/daemontsun/window-base

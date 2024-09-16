@@ -61,7 +61,7 @@ void log_message(const_string msg)
     mt->level = LevelMessage;
     time_t t = time(nullptr);
     mt->timestamp = *localtime(&t);
-    set_string(&mt->message, msg);
+    string_set(&mt->message, msg);
 }
 
 void log_error(const_string msg)
@@ -74,7 +74,7 @@ void log_error(const_string msg)
     mt->level = LevelError;
     time_t t = time(nullptr);
     mt->timestamp = *localtime(&t);
-    set_string(&mt->message, msg);
+    string_set(&mt->message, msg);
 }
 
 void log_error(const_string msg, error *err)
@@ -97,7 +97,7 @@ void log_error(const_string msg, error *err)
 #endif
     }
     else
-        set_string(&mt->message, msg);
+        string_set(&mt->message, msg);
 }
 
 void log_clear()

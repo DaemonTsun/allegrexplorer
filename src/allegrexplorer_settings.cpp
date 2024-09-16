@@ -38,7 +38,7 @@ static void _settings_ClearAllFn(ImGuiContext* ctx, ImGuiSettingsHandler* handle
 
 static void *_settings_ReadOpenFn(ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name)
 {
-    if (compare_strings(name, "Preferences") == 0)
+    if (string_compare(name, "Preferences") == 0)
         return &_settings;
 
     return (void*)nullptr;

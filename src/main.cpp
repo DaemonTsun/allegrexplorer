@@ -16,9 +16,9 @@
 #include "log_window.hpp"
 #include "popups.hpp"
 
-#include "window/colorscheme.hpp"
+#include "ui/colorscheme.hpp"
+#include "ui/filepicker.hpp"
 #include "window/window_imgui_util.hpp"
-#include "fs-ui/filepicker.hpp"
 
 struct glfw_key_input
 {
@@ -104,30 +104,7 @@ static void _menu_bar()
 
         if (ImGui::BeginMenu("Settings"))
         {
-            if (ImGui::BeginMenu("Colorscheme"))
-            {
-                static const colorscheme *schemes = nullptr;
-                static int count = 0;
-                static int selection = 0;
-
-                if (schemes == nullptr)
-                    colorscheme_get_all(&schemes, &count);
-
-                for (int i = 0; i < count; i++)
-                {
-                    if (schemes + i == colorscheme_get_current())
-                        selection = i;
-
-                    if (ImGui::RadioButton(schemes[i].name, &selection, i))
-                    {
-                        selection = i;
-                        colorscheme_set(schemes + i);
-                    }
-                }
-
-                ImGui::EndMenu();
-            }
-
+            ui::ColorschemeMenu();
             ImGui::EndMenu();
         }
         
@@ -240,14 +217,14 @@ static void _show_popups()
 
     if_imgui_begin_global_modal_popup(POPUP_OPEN_ELF)
     {
-        if (FsUi::FileDialog(POPUP_OPEN_ELF, filebuf, 4095, FsUi_DefaultDialogFilter,
-                    FsUi_FilepickerFlags_NoDirectories | FsUi_FilepickerFlags_SelectionMustExist))
+        if (ui::FileDialog(POPUP_OPEN_ELF, filebuf, 4095, ui_DefaultDialogFilter,
+                    ui_FilepickerFlags_NoDirectories | ui_FilepickerFlags_SelectionMustExist))
         {
             ImGui::CloseCurrentPopup();
             
             const_string path = to_const_string(filebuf);
 
-            if (!is_blank(path))
+            if (!string_is_blank(path))
             {
                 error err{};
                 _load_psp_elf(path.c_str, &err);
@@ -274,15 +251,15 @@ static void _show_popups()
 
     if_imgui_begin_global_modal_popup(POPUP_EXPORT_DECRYPTED_ELF)
     {
-        if (FsUi::FileDialog(POPUP_EXPORT_DECRYPTED_ELF, filebuf, 4095,
+        if (ui::FileDialog(POPUP_EXPORT_DECRYPTED_ELF, filebuf, 4095,
                     "PSP Elf (bin)|*.bin|Any file|*.*",
-                    FsUi_FilepickerFlags_NoDirectories))
+                    ui_FilepickerFlags_NoDirectories))
         {
             ImGui::CloseCurrentPopup();
             
             const_string path = to_const_string(filebuf);
 
-            if (!is_blank(path))
+            if (!string_is_blank(path))
             {
                 error err{};
                 io_handle f = io_open(path.c_str, open_mode::WriteTrunc, &err);
@@ -316,27 +293,27 @@ static void _show_popups()
 
         ImGui::BulletText("Source Code:");
         ImGui::SameLine();
-        ImGui::TextLinkOpenURL("Github", "https://github.com/daemontsun/allegrexplorer");
+        ImGui::TextLinkOpenURL("Github##link_github_allegrexplorer", "https://github.com/daemontsun/allegrexplorer");
 
         ImGui::BulletText("liballegrex disassembly library:");
         ImGui::SameLine();
-        ImGui::TextLinkOpenURL("Github", "https://github.com/daemontsun/liballegrex");
+        ImGui::TextLinkOpenURL("Github##link_github_liballegrex", "https://github.com/daemontsun/liballegrex");
 
         ImGui::BulletText("Allegrex instruction opcodes:");
         ImGui::SameLine();
-        ImGui::TextLinkOpenURL("Link", "https://github.com/DaemonTsun/liballegrex/blob/master/instructions/main.s");
+        ImGui::TextLinkOpenURL("Link##link_github_liballegrex_instructions", "https://github.com/DaemonTsun/liballegrex/blob/master/instructions/main.s");
 
         ImGui::BulletText("Allegrex instructions by hlide:");
         ImGui::SameLine();
-        ImGui::TextLinkOpenURL("Link", "http://hlide.free.fr/");
+        ImGui::TextLinkOpenURL("Link##link_hlide", "http://hlide.free.fr/");
 
         ImGui::BulletText("Allegrex VFPU by hlide:");
         ImGui::SameLine();
-        ImGui::TextLinkOpenURL("Link", "http://hlide.free.fr/vCpuxDox/vcpuxdox.html");
+        ImGui::TextLinkOpenURL("Link##link_hlide_vfpu", "http://hlide.free.fr/vCpuxDox/vcpuxdox.html");
 
         ImGui::BulletText("PSPDev toolchain:");
         ImGui::SameLine();
-        ImGui::TextLinkOpenURL("Link", "https://github.com/pspdev/pspdev");
+        ImGui::TextLinkOpenURL("Link##link_github_pspdev", "https://github.com/pspdev/pspdev");
 
         ImGui::NewLine();
         ImGui::Separator();
@@ -351,15 +328,15 @@ static void _show_popups()
 
     if_imgui_begin_global_modal_popup(POPUP_EXPORT_DISASSEMBLY)
     {
-        if (FsUi::FileDialog(POPUP_EXPORT_DISASSEMBLY, filebuf, 4095,
+        if (ui::FileDialog(POPUP_EXPORT_DISASSEMBLY, filebuf, 4095,
                     "Disassembly (.txt, .asm, .s)|*.txt;*.asm;*.s|Any file|*.*",
-                    FsUi_FilepickerFlags_NoDirectories))
+                    ui_FilepickerFlags_NoDirectories))
         {
             ImGui::CloseCurrentPopup();
             
             const_string path = to_const_string(filebuf);
 
-            if (!is_blank(path))
+            if (!string_is_blank(path))
             {
                 error err{};
                 io_handle f = io_open(path.c_str, open_mode::WriteTrunc, &err);
@@ -539,7 +516,7 @@ static void _setup()
     ImGui::LoadIniSettingsFromDisk(ImGui::GetIO().IniFilename);
 
     allegrexplorer_settings *settings = settings_get();
-    colorscheme_set_default();
+    ui::colorscheme_set_default();
 
     window_set_size(actx.window, settings->window.width, settings->window.height);
 
